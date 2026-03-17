@@ -11,10 +11,19 @@ export default async function HomePage() {
   if (user) {
     const staffRole = user.app_metadata?.staff_role as string | undefined;
     if (staffRole) {
-      const portals = ROLE_PORTAL_ACCESS[staffRole] ?? [];
-      if (portals.includes("admin")) redirect("/admin/access-control");
-      if (portals.includes("management")) redirect("/management/inventory");
-      redirect("/crew/check-in");
+      const ROLE_HOME: Record<string, string> = {
+        it_admin:                 "/admin/access-control",
+        business_admin:           "/admin/executive",
+        fnb_manager:              "/management/fnb/menu",
+        merch_manager:            "/management/merch/catalog",
+        maintenance_manager:      "/management/operations/telemetry",
+        inventory_manager:        "/management/inventory",
+        marketing_manager:        "/management/marketing/campaigns",
+        human_resources_manager:  "/management/hr-roster",
+        compliance_manager:       "/management/hr-roster",
+        operations_manager:       "/management/operations/telemetry",
+      };
+      redirect(ROLE_HOME[staffRole] ?? "/crew/check-in");
     }
   }
 

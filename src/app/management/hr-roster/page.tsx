@@ -1,101 +1,421 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { fetchShiftsAction } from "../actions";
+import { useState, useMemo, useCallback } from "react";
+import {
+  Users, UserPlus, Search, MoreHorizontal, Pencil, ArrowRightLeft,
+  UserX, X, Lock, Eye, EyeOff, Copy, ChevronLeft, ChevronRight,
+  ShieldCheck, CheckCircle2, AlertOctagon,
+} from "lucide-react";
+import DomainAuditTable from "@/components/DomainAuditTable";
 
-interface Shift {
-  id: string;
-  shift_date: string;
-  start_time: string;
-  end_time: string;
-  status: string;
-  notes: string | null;
-  staff_records: { legal_name: string; role: string } | null;
+// ── Enums ───────────────────────────────────────────────────────────────────
+
+const ROLES: Record<string, string> = {
+  it_admin: "IT Admin", business_admin: "Business Admin",
+  fnb_manager: "F&B Manager", merch_manager: "Merch Manager", maintenance_manager: "Maintenance Manager",
+  inventory_manager: "Inventory Manager", marketing_manager: "Marketing Manager",
+  human_resources_manager: "HR Manager", compliance_manager: "Compliance Manager", operations_manager: "Operations Manager",
+  fnb_crew: "F&B Crew", service_crew: "Service Crew", giftshop_crew: "Giftshop Crew",
+  runner_crew: "Runner Crew", security_crew: "Security Crew", health_crew: "Health Crew",
+  cleaning_crew: "Cleaning Crew", experience_crew: "Experience Crew", internal_maintainence_crew: "Internal Maintenance Crew",
+};
+
+const ROLE_GROUPS = {
+  ADMIN: ["it_admin", "business_admin"],
+  MANAGEMENT: ["fnb_manager", "merch_manager", "maintenance_manager", "inventory_manager", "marketing_manager", "human_resources_manager", "compliance_manager", "operations_manager"],
+  CREW: ["fnb_crew", "service_crew", "giftshop_crew", "runner_crew", "security_crew", "health_crew", "cleaning_crew", "experience_crew", "internal_maintainence_crew"],
+};
+
+const STATUSES: Record<string, string> = { active: "ACTIVE", pending: "PENDING", on_leave: "ON LEAVE", suspended: "SUSPENDED", terminated: "TERMINATED" };
+
+const STATUS_STYLES: Record<string, string> = {
+  active: "bg-green-500/12 text-green-400 border-green-500/30",
+  pending: "bg-amber-400/12 text-amber-400 border-amber-400/30",
+  on_leave: "bg-blue-400/12 text-blue-400 border-blue-400/30",
+  suspended: "bg-orange-500/12 text-orange-500 border-orange-500/30",
+  terminated: "bg-red-500/12 text-red-500 border-red-500/30",
+};
+
+function roleColor(role: string) {
+  if (role.endsWith("_admin")) return "bg-fuchsia-500/15 text-fuchsia-400 border-fuchsia-500/30";
+  if (role.endsWith("_manager")) return "bg-amber-500/15 text-amber-400 border-amber-500/30";
+  return "bg-sky-500/15 text-sky-400 border-sky-500/30";
 }
 
-export default function HrRosterPage() {
-  const [shifts, setShifts] = useState<Shift[]>([]);
-  const [total, setTotal] = useState(0);
+interface Employee {
+  id: string; name: string; email: string; phone: string; address: string;
+  kinName: string; kinRel: string; kinPhone: string;
+  nationalId: string; bank: string; account: string; salary: string;
+  role: string; startDate: string; endDate: string | null; status: string;
+}
+
+const INITIAL_EMPLOYEES: Employee[] = [
+  { id: "EMP-8F2A3B91", name: "Ahmad Razif bin Harun", email: "ahmad.r@agartha.com", phone: "+60 12-345 6789", address: "12 Jln Bukit, KL", kinName: "Siti Aminah", kinRel: "Wife", kinPhone: "+60 13-456 7890", nationalId: "xxxx-xxxx-3847", bank: "Maybank", account: "112233445566", salary: "3500.00", role: "fnb_crew", startDate: "2024-03-15", endDate: null, status: "active" },
+  { id: "EMP-1D4E6F78", name: "Chen Wei Lin", email: "wei.lin@agartha.com", phone: "+60 11-987 6543", address: "88 Damansara Heights", kinName: "Chen Mei Ling", kinRel: "Mother", kinPhone: "+60 11-111 2222", nationalId: "xxxx-xxxx-5512", bank: "CIMB", account: "987654321012", salary: "4200.00", role: "security_crew", startDate: "2023-11-01", endDate: "2025-10-31", status: "active" },
+  { id: "EMP-9A2B3C4D", name: "Nur Aisyah binti Osman", email: "aisyah.o@agartha.com", phone: "+60 19-876 5432", address: "45 Setapak, KL", kinName: "Osman bin Ali", kinRel: "Father", kinPhone: "+60 13-999 8888", nationalId: "xxxx-xxxx-7721", bank: "RHB", account: "887766554433", salary: "3200.00", role: "giftshop_crew", startDate: "2024-06-01", endDate: null, status: "active" },
+  { id: "EMP-5E6F7A8B", name: "Rajesh Krishnan", email: "rajesh.k@agartha.com", phone: "+60 17-654 3210", address: "101 Bangsar South", kinName: "Priya Devi", kinRel: "Wife", kinPhone: "+60 17-222 3333", nationalId: "xxxx-xxxx-1198", bank: "Public Bank", account: "102030405060", salary: "4800.00", role: "health_crew", startDate: "2023-05-20", endDate: null, status: "active" },
+  { id: "EMP-2C3D4E5F", name: "Sarah Johnson", email: "sarah.j@agartha.com", phone: "+60 10-123 4567", address: "7 Mont Kiara", kinName: "David Johnson", kinRel: "Brother", kinPhone: "+60 14-555 6666", nationalId: "xxxx-xxxx-4409", bank: "HSBC", account: "665544332211", salary: "4500.00", role: "experience_crew", startDate: "2024-01-10", endDate: "2024-12-31", status: "terminated" },
+  { id: "EMP-7G8H9I0J", name: "Muhammad Irfan bin Yusof", email: "irfan.y@agartha.com", phone: "+60 16-789 0123", address: "22 Subang Jaya", kinName: "Yusof bin Hassan", kinRel: "Father", kinPhone: "+60 12-777 8888", nationalId: "xxxx-xxxx-6633", bank: "AmBank", account: "119922883377", salary: "3600.00", role: "internal_maintainence_crew", startDate: "2024-08-15", endDate: null, status: "active" },
+  { id: "EMP-3K4L5M6N", name: "Tan Siew Ling", email: "siew.ling@agartha.com", phone: "+60 18-321 6540", address: "55 Petaling Jaya", kinName: "Tan Ah Kow", kinRel: "Husband", kinPhone: "+60 12-444 5555", nationalId: "xxxx-xxxx-2287", bank: "Hong Leong", account: "776655443322", salary: "3800.00", role: "fnb_manager", startDate: "2023-09-01", endDate: null, status: "pending" },
+  { id: "EMP-8O9P0Q1R", name: "Amirul Hakim bin Mazlan", email: "amirul.m@agartha.com", phone: "+60 15-654 7890", address: "33 Cheras", kinName: "Mazlan bin Ibrahim", kinRel: "Father", kinPhone: "+60 13-666 7777", nationalId: "xxxx-xxxx-9901", bank: "Bank Islam", account: "223344556677", salary: "4100.00", role: "security_crew", startDate: "2024-04-01", endDate: "2026-03-31", status: "active" },
+  { id: "EMP-2S3T4U5V", name: "Kavitha Murugan", email: "kavitha.m@agartha.com", phone: "+60 14-987 1234", address: "9 Ampang", kinName: "Murugan Pillai", kinRel: "Father", kinPhone: "+60 12-888 9999", nationalId: "xxxx-xxxx-5578", bank: "Standard Chartered", account: "554433221100", salary: "3400.00", role: "runner_crew", startDate: "2024-02-14", endDate: null, status: "suspended" },
+  { id: "EMP-6W7X8Y9Z", name: "Lee Jia Hao", email: "jia.hao@agartha.com", phone: "+60 11-456 7890", address: "77 Sri Hartamas", kinName: "Lee Mei Fong", kinRel: "Mother", kinPhone: "+60 11-333 4444", nationalId: "xxxx-xxxx-3345", bank: "UOB", account: "998877665544", salary: "4900.00", role: "it_admin", startDate: "2023-12-01", endDate: null, status: "active" },
+  { id: "EMP-0A1B2C3D", name: "Fatimah binti Abdullah", email: "fatimah.a@agartha.com", phone: "+60 19-111 2233", address: "14 Bukit Jalil", kinName: "Abdullah bin Ismail", kinRel: "Father", kinPhone: "+60 18-123 4567", nationalId: "xxxx-xxxx-7789", bank: "Maybank", account: "445566778899", salary: "4300.00", role: "cleaning_crew", startDate: "2024-07-01", endDate: null, status: "active" },
+  { id: "EMP-4E5F6G7H", name: "Vikram Singh", email: "vikram.s@agartha.com", phone: "+60 17-999 8877", address: "28 Desa ParkCity", kinName: "Gurpreet Kaur", kinRel: "Wife", kinPhone: "+60 17-111 0000", nationalId: "xxxx-xxxx-1123", bank: "OCBC", account: "102938475665", salary: "3700.00", role: "operations_manager", startDate: "2024-09-15", endDate: "2025-09-14", status: "pending" },
+];
+
+const PAGE_SIZE = 10;
+
+// ── RoleSelect Component ────────────────────────────────────────────────────
+
+function RoleSelect({ value, onChange, id }: { value: string; onChange: (v: string) => void; id?: string }) {
+  return (
+    <select id={id} value={value} onChange={(e) => onChange(e.target.value)}
+      className="w-full bg-[#020408] border border-white/10 rounded-md text-sm text-white px-3 py-2 focus:outline-none focus:border-[rgba(212,175,55,0.5)] cursor-pointer appearance-none">
+      {Object.entries(ROLE_GROUPS).map(([group, roles]) => (
+        <optgroup key={group} label={group}>
+          {roles.map((r) => <option key={r} value={r}>{ROLES[r]}</option>)}
+        </optgroup>
+      ))}
+    </select>
+  );
+}
+
+// ── Page ────────────────────────────────────────────────────────────────────
+
+export default function StaffManagementPage() {
+  const [employees, setEmployees] = useState<Employee[]>(INITIAL_EMPLOYEES);
+  const [search, setSearch] = useState("");
+  const [filterRoles, setFilterRoles] = useState<string[]>([]);
+  const [filterStatuses, setFilterStatuses] = useState<string[]>([]);
   const [page, setPage] = useState(1);
-  const [loading, setLoading] = useState(true);
-  const pageSize = 20;
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    const result = await fetchShiftsAction({ page, pageSize });
-    setShifts(result.data as unknown as Shift[]);
-    setTotal(result.total);
-    setLoading(false);
-  }, [page]);
+  // Modals
+  const [editModal, setEditModal] = useState<Employee | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
+  const [transferModal, setTransferModal] = useState<Employee | null>(null);
+  const [transferTarget, setTransferTarget] = useState("");
+  const [transferJustification, setTransferJustification] = useState("");
+  const [termModal, setTermModal] = useState<Employee | null>(null);
+  const [termReason, setTermReason] = useState("");
+  const [termConfirmId, setTermConfirmId] = useState("");
 
-  useEffect(() => { load(); }, [load]);
-  const totalPages = Math.ceil(total / pageSize);
+  // PII visibility
+  const [showAccount, setShowAccount] = useState(false);
+  const [showSalary, setShowSalary] = useState(false);
 
-  const statusBadge = (s: string) => {
-    switch (s) {
-      case "completed": return "success" as const;
-      case "absent": case "cancelled": return "destructive" as const;
-      case "checked_in": return "gold" as const;
-      default: return "outline" as const;
+  // Filter dropdowns
+  const [showRoleFilter, setShowRoleFilter] = useState(false);
+  const [showStatusFilter, setShowStatusFilter] = useState(false);
+
+  const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3500); };
+
+  // ─ Filtering & Pagination ─
+  const filtered = useMemo(() => {
+    return employees.filter((emp) => {
+      if (search && !emp.name.toLowerCase().includes(search.toLowerCase()) && !emp.id.toLowerCase().includes(search.toLowerCase())) return false;
+      if (filterRoles.length > 0 && !filterRoles.includes(emp.role)) return false;
+      if (filterStatuses.length > 0 && !filterStatuses.includes(emp.status)) return false;
+      return true;
+    });
+  }, [employees, search, filterRoles, filterStatuses]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const pageData = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  // ─ Edit/Create ─
+  function openEdit(emp: Employee | null) {
+    if (emp) { setEditModal({ ...emp }); setIsCreating(false); }
+    else {
+      setEditModal({ id: `EMP-${Math.random().toString(36).substring(2, 10).toUpperCase()}`, name: "", email: "", phone: "", address: "", kinName: "", kinRel: "", kinPhone: "", nationalId: "", bank: "", account: "", salary: "", role: "fnb_crew", startDate: new Date().toISOString().split("T")[0], endDate: null, status: "pending" });
+      setIsCreating(true);
     }
-  };
+    setShowAccount(false); setShowSalary(false); setOpenMenuId(null);
+  }
+
+  function saveEmployee() {
+    if (!editModal || !editModal.name.trim()) { showToast("Legal name is required."); return; }
+    if (isCreating) { setEmployees((prev) => [editModal, ...prev]); showToast(`✅ ${editModal.name} provisioned successfully.`); }
+    else { setEmployees((prev) => prev.map((e) => e.id === editModal.id ? editModal : e)); showToast(`✅ Profile updated for ${editModal.name}.`); }
+    setEditModal(null);
+  }
+
+  // ─ Transfer ─
+  function openTransfer(emp: Employee) { setTransferModal(emp); setTransferTarget(emp.role); setTransferJustification(""); setOpenMenuId(null); }
+  function submitTransfer() {
+    if (!transferModal || !transferJustification.trim()) { showToast("Business justification is required."); return; }
+    setEmployees((prev) => prev.map((e) => e.id === transferModal.id ? { ...e, role: transferTarget } : e));
+    showToast(`✅ Transfer request submitted. ${transferModal.name} → ${ROLES[transferTarget]}.`);
+    setTransferModal(null);
+  }
+
+  // ─ Terminate ─
+  function openTerm(emp: Employee) { setTermModal(emp); setTermReason(""); setTermConfirmId(""); setOpenMenuId(null); }
+  function executeTerm() {
+    if (!termModal || !termReason || termConfirmId !== termModal.id) return;
+    setEmployees((prev) => prev.map((e) => e.id === termModal.id ? { ...e, status: "terminated" } : e));
+    showToast(`⚠ ${termModal.name} terminated. All access revoked.`);
+    setTermModal(null);
+  }
+
+  function toggleFilterRole(r: string) { setFilterRoles((prev) => prev.includes(r) ? prev.filter((x) => x !== r) : [...prev, r]); setPage(1); }
+  function toggleFilterStatus(s: string) { setFilterStatuses((prev) => prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]); setPage(1); }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-5 pb-10">
+      {/* ── Header ──────────────────────────────────────────────── */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">HR Roster & Shifts</h1>
-          <p className="text-muted-foreground text-sm mt-1">Staff shift scheduling and attendance</p>
+          <h3 className="font-cinzel text-xl text-[#d4af37] flex items-center tracking-wider"><Users className="w-6 h-6 mr-3" /> Staff Management</h3>
+          <p className="text-xs text-gray-400 mt-1 uppercase tracking-widest">Crew Provisioning & Records</p>
         </div>
-        <Badge variant="outline">{total} shifts</Badge>
+        <button onClick={() => openEdit(null)}
+          className="flex items-center gap-2 bg-gradient-to-r from-[#806b45] to-[#d4af37] hover:from-[#d4af37] hover:to-yellow-300 text-[#020408] font-bold py-2.5 px-5 rounded-lg shadow-[0_0_15px_rgba(212,175,55,0.4)] transition-all whitespace-nowrap text-sm">
+          <UserPlus className="w-4 h-4" /> + Provision New Crew Member
+        </button>
       </div>
 
-      <Card>
-        <CardContent className="p-0">
-          {loading ? (
-            <div className="flex items-center justify-center py-16"><div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>
-          ) : shifts.length === 0 ? (
-            <p className="text-center text-muted-foreground py-16">No shifts scheduled.</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border bg-muted/30">
-                    {["Staff", "Role", "Date", "Start", "End", "Status", "Notes"].map((h) => (
-                      <th key={h} className="text-left py-3 px-4 text-[10px] uppercase tracking-widest text-muted-foreground font-bold">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {shifts.map((s) => (
-                    <tr key={s.id} className="border-b border-border/50 hover:bg-muted/20 transition">
-                      <td className="py-3 px-4 font-medium text-foreground">{s.staff_records?.legal_name ?? "—"}</td>
-                      <td className="py-3 px-4"><Badge variant="outline">{s.staff_records?.role ?? "—"}</Badge></td>
-                      <td className="py-3 px-4 text-muted-foreground">{s.shift_date}</td>
-                      <td className="py-3 px-4 font-mono text-xs text-muted-foreground">{s.start_time}</td>
-                      <td className="py-3 px-4 font-mono text-xs text-muted-foreground">{s.end_time}</td>
-                      <td className="py-3 px-4"><Badge variant={statusBadge(s.status)}>{s.status}</Badge></td>
-                      <td className="py-3 px-4 text-muted-foreground text-xs max-w-xs truncate">{s.notes ?? "—"}</td>
-                    </tr>
+      {/* ── Filters ──────────────────────────────────────────────── */}
+      <div className="glass-panel rounded-lg p-4 flex flex-col md:flex-row items-start md:items-center gap-4 relative z-20">
+        <div className="flex-1 relative">
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+          <input type="text" value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+            placeholder="Search by Name or Employee ID..."
+            className="w-full bg-[#020408] border border-white/10 text-sm text-white rounded-md pl-10 pr-4 py-2 focus:outline-none focus:border-[rgba(212,175,55,0.5)] transition-all" />
+        </div>
+        {/* Role Filter */}
+        <div className="relative">
+          <button onClick={() => { setShowRoleFilter(!showRoleFilter); setShowStatusFilter(false); }}
+            className="flex items-center gap-1 px-3 py-2 text-xs text-gray-400 border border-white/10 rounded-md hover:border-[rgba(212,175,55,0.3)] hover:text-[#d4af37] transition-all min-w-[160px]">
+            {filterRoles.length > 0 ? <span className="text-[#d4af37] font-semibold">{filterRoles.length} roles</span> : "Filter by Role..."}
+          </button>
+          {showRoleFilter && (
+            <div className="absolute top-full mt-1 left-0 z-40 bg-[rgba(10,20,30,0.97)] border border-white/10 rounded-md max-h-48 overflow-y-auto w-56 shadow-lg">
+              {Object.entries(ROLE_GROUPS).map(([group, roles]) => (
+                <div key={group}>
+                  <div className="px-2 py-1 text-[10px] font-bold text-gray-400 uppercase tracking-wider bg-[#020408]/80">{group}</div>
+                  {roles.map((r) => (
+                    <label key={r} className="flex items-center gap-2 px-3 py-1.5 text-xs text-gray-300 hover:bg-[rgba(212,175,55,0.08)] cursor-pointer">
+                      <input type="checkbox" checked={filterRoles.includes(r)} onChange={() => toggleFilterRole(r)} className="accent-[#d4af37]" />
+                      {ROLES[r]}
+                    </label>
                   ))}
-                </tbody>
-              </table>
+                </div>
+              ))}
             </div>
           )}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between px-4 py-3 border-t border-border">
-              <span className="text-xs text-muted-foreground">Page {page} of {totalPages}</span>
-              <div className="flex gap-2">
-                <Button variant="ghost" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>← Prev</Button>
-                <Button variant="ghost" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>Next →</Button>
+        </div>
+        {/* Status Filter */}
+        <div className="relative">
+          <button onClick={() => { setShowStatusFilter(!showStatusFilter); setShowRoleFilter(false); }}
+            className="flex items-center gap-1 px-3 py-2 text-xs text-gray-400 border border-white/10 rounded-md hover:border-[rgba(212,175,55,0.3)] hover:text-[#d4af37] transition-all min-w-[160px]">
+            {filterStatuses.length > 0 ? <span className="text-[#d4af37] font-semibold">{filterStatuses.length} statuses</span> : "Filter by Status..."}
+          </button>
+          {showStatusFilter && (
+            <div className="absolute top-full mt-1 left-0 z-40 bg-[rgba(10,20,30,0.97)] border border-white/10 rounded-md w-48 shadow-lg">
+              {Object.entries(STATUSES).map(([k, v]) => (
+                <label key={k} className="flex items-center gap-2 px-3 py-1.5 text-xs text-gray-300 hover:bg-[rgba(212,175,55,0.08)] cursor-pointer">
+                  <input type="checkbox" checked={filterStatuses.includes(k)} onChange={() => toggleFilterStatus(k)} className="accent-[#d4af37]" />
+                  {v}
+                </label>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── Data Table ───────────────────────────────────────────── */}
+      <div className="glass-panel rounded-lg flex flex-col overflow-hidden min-h-[520px]">
+        <div className="overflow-x-auto flex-1">
+          <table className="w-full text-left text-sm whitespace-nowrap">
+            <thead className="text-[10px] text-gray-500 uppercase tracking-wider bg-[#010204] sticky top-0 z-10 border-b border-white/10">
+              <tr>
+                {["Employee ID", "Legal Name", "Role & Department", "Employment Term", "Status", "Actions"].map((h) => (
+                  <th key={h} className={`px-5 py-3.5 font-semibold ${h === "Actions" ? "text-right" : ""}`}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/5">
+              {pageData.length === 0 ? (
+                <tr><td colSpan={6} className="text-center py-16 text-gray-600 text-sm">No employees match your filters.</td></tr>
+              ) : pageData.map((emp) => (
+                <tr key={emp.id} className="hover:bg-white/[0.02] transition-colors border-l-2 border-transparent hover:border-l-[#d4af37] group">
+                  <td className="px-5 py-3.5">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-xs text-gray-300">{emp.id.substring(0, 12)}…</span>
+                      <button onClick={() => { navigator.clipboard.writeText(emp.id); showToast("ID copied."); }} className="text-gray-600 hover:text-[#d4af37] transition-colors opacity-0 group-hover:opacity-100"><Copy className="w-3 h-3" /></button>
+                    </div>
+                  </td>
+                  <td className="px-5 py-3.5 text-sm text-white font-medium">{emp.name}</td>
+                  <td className="px-5 py-3.5"><span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${roleColor(emp.role)}`}>{ROLES[emp.role]}</span></td>
+                  <td className="px-5 py-3.5 text-xs text-gray-400 font-mono">{emp.endDate ? `${emp.startDate} → ${emp.endDate}` : <span className="text-white">Permanent</span>}</td>
+                  <td className="px-5 py-3.5"><span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${STATUS_STYLES[emp.status] ?? ""}`}>{STATUSES[emp.status]}</span></td>
+                  <td className="px-5 py-3.5 text-right">
+                    <div className="relative inline-block">
+                      <button onClick={() => setOpenMenuId(openMenuId === emp.id ? null : emp.id)} className="text-gray-500 hover:text-[#d4af37] transition-colors p-1.5 rounded hover:bg-[rgba(212,175,55,0.1)]"><MoreHorizontal className="w-4 h-4" /></button>
+                      {openMenuId === emp.id && (
+                        <div className="absolute right-0 top-full z-30 min-w-[11rem] bg-[rgba(10,20,30,0.95)] border border-white/10 rounded-lg py-1 shadow-xl">
+                          <button onClick={() => openEdit(emp)} className="flex items-center gap-2 w-full px-3 py-2 text-xs text-gray-300 hover:bg-[rgba(212,175,55,0.1)] hover:text-[#d4af37]"><Pencil className="w-3.5 h-3.5" /> Edit Profile</button>
+                          <button onClick={() => openTransfer(emp)} className="flex items-center gap-2 w-full px-3 py-2 text-xs text-gray-300 hover:bg-[rgba(212,175,55,0.1)] hover:text-[#d4af37]"><ArrowRightLeft className="w-3.5 h-3.5" /> Transfer Role</button>
+                          <div className="my-1 border-t border-white/5" />
+                          <button onClick={() => openTerm(emp)} className="flex items-center gap-2 w-full px-3 py-2 text-xs text-red-400 hover:bg-red-500/10"><UserX className="w-3.5 h-3.5" /> Terminate Employee</button>
+                        </div>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {/* Pagination */}
+        <div className="flex items-center justify-between px-5 py-3 border-t border-white/10 bg-[#010204]">
+          <span className="text-xs text-gray-500 font-mono">{filtered.length > 0 ? `Showing ${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, filtered.length)} of ${filtered.length} records` : "0 records"}</span>
+          <div className="flex items-center gap-1">
+            <button disabled={page <= 1} onClick={() => setPage((p) => p - 1)} className="p-1.5 text-gray-500 hover:text-[#d4af37] disabled:opacity-30 transition-colors"><ChevronLeft className="w-4 h-4" /></button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+              <button key={p} onClick={() => setPage(p)} className={`px-3 py-1.5 text-xs rounded transition-all ${p === page ? "bg-[rgba(212,175,55,0.2)] text-[#d4af37] border border-[rgba(212,175,55,0.4)] font-bold" : "text-gray-400 hover:text-[#d4af37] hover:bg-[rgba(212,175,55,0.1)]"}`}>{p}</button>
+            ))}
+            <button disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)} className="p-1.5 text-gray-500 hover:text-[#d4af37] disabled:opacity-30 transition-colors"><ChevronRight className="w-4 h-4" /></button>
+          </div>
+        </div>
+      </div>
+
+      <DomainAuditTable entityTypes={["staff_record"]} title="Staff Audit Trail" />
+
+      {/* ═══ EDIT / CREATE PROFILE MODAL ═══ */}
+      {editModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#020408]/80 backdrop-blur-sm p-4 overflow-y-auto" onClick={() => setEditModal(null)}>
+          <div className="glass-panel rounded-lg w-full max-w-2xl border-[rgba(212,175,55,0.3)] shadow-[0_10px_40px_rgba(212,175,55,0.15)] my-auto flex flex-col max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
+            <div className="p-5 border-b border-white/10 flex justify-between items-center bg-[#020408]/50 rounded-t-lg flex-shrink-0">
+              <h3 className="font-cinzel text-lg text-[#d4af37] tracking-wider">{isCreating ? "Provision New Crew Member" : "Edit Profile"}</h3>
+              <button onClick={() => setEditModal(null)} className="text-gray-400 hover:text-white transition-colors"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="p-6 space-y-5 overflow-y-auto flex-1">
+              {/* Identity */}
+              <div>
+                <div className="font-cinzel text-[11px] uppercase tracking-[0.15em] text-[#d4af37] pb-2 border-b border-[rgba(212,175,55,0.15)] mb-3">Identity</div>
+                <div className="grid grid-cols-2 gap-4">
+                  {[{ label: "Legal Name", key: "name" as const, type: "text", placeholder: "Full Legal Name" }, { label: "Primary Email", key: "email" as const, type: "email", placeholder: "email@agartha.com" }, { label: "Phone Number", key: "phone" as const, type: "tel", placeholder: "+60 12-345 6789" }, { label: "Home Address", key: "address" as const, type: "text", placeholder: "Street, City, Postal" }].map((f) => (
+                    <div key={f.key}><label className="block text-[10px] text-gray-400 uppercase tracking-widest font-semibold mb-1">{f.label}</label><input type={f.type} value={editModal[f.key]} onChange={(e) => setEditModal({ ...editModal, [f.key]: e.target.value })} placeholder={f.placeholder} className="w-full bg-[#020408] border border-white/10 rounded-md text-sm text-white px-3 py-2 focus:outline-none focus:border-[rgba(212,175,55,0.5)]" /></div>
+                  ))}
+                </div>
+              </div>
+              {/* Emergency Contact */}
+              <div>
+                <div className="font-cinzel text-[11px] uppercase tracking-[0.15em] text-[#d4af37] pb-2 border-b border-[rgba(212,175,55,0.15)] mb-3">Emergency Contact</div>
+                <div className="grid grid-cols-3 gap-4">
+                  {[{ label: "Next of Kin", key: "kinName" as const, ph: "Full Name" }, { label: "Relationship", key: "kinRel" as const, ph: "e.g. Spouse" }, { label: "Phone", key: "kinPhone" as const, ph: "+60 12-345 6789" }].map((f) => (
+                    <div key={f.key}><label className="block text-[10px] text-gray-400 uppercase tracking-widest font-semibold mb-1">{f.label}</label><input type="text" value={editModal[f.key]} onChange={(e) => setEditModal({ ...editModal, [f.key]: e.target.value })} placeholder={f.ph} className="w-full bg-[#020408] border border-white/10 rounded-md text-sm text-white px-3 py-2 focus:outline-none focus:border-[rgba(212,175,55,0.5)]" /></div>
+                  ))}
+                </div>
+              </div>
+              {/* PII & Financial */}
+              <div>
+                <div className="font-cinzel text-[11px] uppercase tracking-[0.15em] text-[#d4af37] pb-2 border-b border-[rgba(212,175,55,0.15)] mb-3 flex items-center justify-between">
+                  <span>PII & Financial</span>
+                  <span className="flex items-center gap-1 text-[#d4af37] text-[9px] font-bold tracking-widest uppercase"><Lock className="w-3.5 h-3.5" /> E2E Encrypted</span>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div><label className="block text-[10px] text-gray-400 uppercase tracking-widest font-semibold mb-1">National ID / Passport</label><input type="text" value={editModal.nationalId} onChange={(e) => setEditModal({ ...editModal, nationalId: e.target.value })} placeholder="****-****-1234" className="w-full bg-[#020408] border border-white/10 rounded-md text-sm text-white px-3 py-2 font-mono focus:outline-none focus:border-[rgba(212,175,55,0.5)]" /></div>
+                  <div><label className="block text-[10px] text-gray-400 uppercase tracking-widest font-semibold mb-1">Bank Name</label><input type="text" value={editModal.bank} onChange={(e) => setEditModal({ ...editModal, bank: e.target.value })} placeholder="Bank Name" className="w-full bg-[#020408] border border-white/10 rounded-md text-sm text-white px-3 py-2 focus:outline-none focus:border-[rgba(212,175,55,0.5)]" /></div>
+                  <div><label className="block text-[10px] text-gray-400 uppercase tracking-widest font-semibold mb-1">Account Number</label>
+                    <div className="relative"><input type={showAccount ? "text" : "password"} value={editModal.account} onChange={(e) => setEditModal({ ...editModal, account: e.target.value })} placeholder="••••••••••••" className="w-full bg-[#020408] border border-white/10 rounded-md text-sm text-white px-3 py-2 pr-10 font-mono focus:outline-none focus:border-[rgba(212,175,55,0.5)]" /><button type="button" onClick={() => setShowAccount(!showAccount)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-[#d4af37] transition-colors">{showAccount ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}</button></div>
+                  </div>
+                  <div><label className="block text-[10px] text-gray-400 uppercase tracking-widest font-semibold mb-1">Monthly Base Salary (MYR)</label>
+                    <div className="relative"><span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-mono text-xs">RM</span><input type={showSalary ? "text" : "password"} value={editModal.salary} onChange={(e) => setEditModal({ ...editModal, salary: e.target.value })} placeholder="••••••" className="w-full bg-[#020408] border border-white/10 rounded-md text-sm text-white pl-9 pr-10 py-2 font-mono focus:outline-none focus:border-[rgba(212,175,55,0.5)]" /><button type="button" onClick={() => setShowSalary(!showSalary)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-[#d4af37] transition-colors">{showSalary ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}</button></div>
+                  </div>
+                </div>
+              </div>
+              {/* Contract */}
+              <div>
+                <div className="font-cinzel text-[11px] uppercase tracking-[0.15em] text-[#d4af37] pb-2 border-b border-[rgba(212,175,55,0.15)] mb-3">Contract</div>
+                <div className="grid grid-cols-3 gap-4">
+                  <div><label className="block text-[10px] text-gray-400 uppercase tracking-widest font-semibold mb-1">Start Date</label><input type="date" value={editModal.startDate} onChange={(e) => setEditModal({ ...editModal, startDate: e.target.value })} className="w-full bg-[#020408] border border-white/10 rounded-md text-sm text-white px-3 py-2 focus:outline-none focus:border-[rgba(212,175,55,0.5)]" style={{ colorScheme: "dark" }} /></div>
+                  <div><label className="block text-[10px] text-gray-400 uppercase tracking-widest font-semibold mb-1">End Date <span className="text-gray-600 normal-case">(optional)</span></label><input type="date" value={editModal.endDate ?? ""} onChange={(e) => setEditModal({ ...editModal, endDate: e.target.value || null })} className="w-full bg-[#020408] border border-white/10 rounded-md text-sm text-white px-3 py-2 focus:outline-none focus:border-[rgba(212,175,55,0.5)]" style={{ colorScheme: "dark" }} /></div>
+                  <div><label className="block text-[10px] text-gray-400 uppercase tracking-widest font-semibold mb-1">Assigned Role</label><RoleSelect value={editModal.role} onChange={(v) => setEditModal({ ...editModal, role: v })} /></div>
+                </div>
+              </div>
+              {/* Save */}
+              <div className="flex justify-end pt-3 border-t border-white/10">
+                <button onClick={saveEmployee} className="px-6 py-2.5 text-sm font-bold rounded bg-gradient-to-r from-[#806b45] to-[#d4af37] hover:from-[#d4af37] hover:to-yellow-300 text-[#020408] shadow-[0_0_15px_rgba(212,175,55,0.3)] transition-all min-w-[160px]">Save</button>
               </div>
             </div>
-          )}
-        </CardContent>
-      </Card>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ TRANSFER MODAL ═══ */}
+      {transferModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#020408]/80 backdrop-blur-sm p-4" onClick={() => setTransferModal(null)}>
+          <div className="glass-panel rounded-lg w-full max-w-lg border-[rgba(212,175,55,0.3)] shadow-[0_10px_40px_rgba(212,175,55,0.15)]" onClick={(e) => e.stopPropagation()}>
+            <div className="p-5 border-b border-white/10 flex justify-between items-center bg-[#020408]/50 rounded-t-lg">
+              <h3 className="font-cinzel text-lg text-[#d4af37] tracking-wider flex items-center gap-2"><ArrowRightLeft className="w-5 h-5" /> Request Role Transfer</h3>
+              <button onClick={() => setTransferModal(null)} className="text-gray-400 hover:text-white transition-colors"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="p-6 space-y-5">
+              <div className="flex items-center gap-2 text-[10px] text-amber-400 bg-amber-400/5 border border-amber-400/20 rounded px-3 py-2">
+                <ShieldCheck className="w-3.5 h-3.5 flex-shrink-0" />
+                <span>Requires IT Clearance. This request will be routed to the IAM Ledger.</span>
+              </div>
+              <div><label className="block text-[10px] text-gray-400 uppercase tracking-widest font-semibold mb-1">Current Role</label><input readOnly value={ROLES[transferModal.role]} className="w-full bg-[#020408] border border-white/10 rounded-md text-sm text-white px-3 py-2 opacity-60 cursor-not-allowed" /></div>
+              <div><label className="block text-[10px] text-gray-400 uppercase tracking-widest font-semibold mb-1">Target Role</label><RoleSelect value={transferTarget} onChange={setTransferTarget} /></div>
+              <div><label className="block text-[10px] text-gray-400 uppercase tracking-widest font-semibold mb-1">Business Justification</label><textarea value={transferJustification} onChange={(e) => setTransferJustification(e.target.value)} rows={3} placeholder="Provide reason for this transfer request..." className="w-full bg-[#020408] border border-white/10 rounded-md text-sm text-white px-3 py-2 focus:outline-none focus:border-[rgba(212,175,55,0.5)] resize-none" /></div>
+              <div className="flex justify-end gap-3 pt-3 border-t border-white/10">
+                <button onClick={() => setTransferModal(null)} className="px-5 py-2.5 text-sm text-gray-400 hover:text-white transition-colors">Cancel</button>
+                <button onClick={submitTransfer} className="px-6 py-2.5 text-sm font-bold rounded bg-gradient-to-r from-[#806b45] to-[#d4af37] hover:from-[#d4af37] hover:to-yellow-300 text-[#020408] shadow-[0_0_15px_rgba(212,175,55,0.3)] transition-all min-w-[210px]">Submit Transfer Request</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ TERMINATION MODAL ═══ */}
+      {termModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#020408]/80 backdrop-blur-sm p-4" onClick={() => setTermModal(null)}>
+          <div className="glass-panel rounded-lg w-full max-w-lg border-red-500/30 shadow-[0_10px_40px_rgba(239,68,68,0.15)]" onClick={(e) => e.stopPropagation()}>
+            <div className="p-5 border-b border-red-500/20 flex justify-between items-center bg-red-950/30 rounded-t-lg">
+              <h3 className="font-cinzel text-lg text-red-400 tracking-wider flex items-center gap-2"><AlertOctagon className="w-5 h-5" /> Execute Offboarding</h3>
+              <button onClick={() => setTermModal(null)} className="text-gray-400 hover:text-white transition-colors"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="p-6 space-y-5">
+              <div className="bg-red-500/5 border border-red-500/20 rounded-lg p-4 text-sm text-red-300 leading-relaxed">
+                <span className="font-bold text-red-400">⚠ CRITICAL ACTION:</span> You are about to instantly terminate <strong className="text-white">{termModal.name}</strong> and revoke all digital and physical access. This action triggers an immediate authentication kill-switch destroying all active JWTs, session cookies, and physical gate clearances.
+              </div>
+              <div><label className="block text-[10px] text-gray-400 uppercase tracking-widest font-semibold mb-1">Termination Reason</label>
+                <select value={termReason} onChange={(e) => setTermReason(e.target.value)} className="w-full bg-[#020408] border border-red-500/20 rounded-md text-sm text-white px-3 py-2 focus:outline-none focus:border-red-500/50 cursor-pointer appearance-none">
+                  <option value="">— Select Reason —</option>
+                  <option value="resignation">Resignation</option>
+                  <option value="contract_expired">Contract Expired</option>
+                  <option value="misconduct">Misconduct</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-[10px] text-gray-400 uppercase tracking-widest font-semibold mb-1">Type Employee ID to Confirm</label>
+                <input type="text" value={termConfirmId} onChange={(e) => setTermConfirmId(e.target.value)} placeholder="Type EMP-XXXX... to unlock" className="w-full bg-[#020408] border border-red-500/20 rounded-md text-sm text-white px-3 py-2 font-mono focus:outline-none focus:border-red-500/50" />
+                <p className="text-[10px] text-gray-600 mt-1">Must match: <span className="font-mono text-red-400/80">{termModal.id}</span></p>
+              </div>
+              <div className="flex justify-end gap-3 pt-3 border-t border-red-500/10">
+                <button onClick={() => setTermModal(null)} className="px-5 py-2.5 text-sm text-gray-400 hover:text-white transition-colors">Cancel</button>
+                <button onClick={executeTerm} disabled={!termReason || termConfirmId !== termModal.id}
+                  className={`px-6 py-2.5 text-sm font-bold rounded transition-all min-w-[200px] ${termReason && termConfirmId === termModal.id ? "bg-red-600 text-white hover:bg-red-500 shadow-lg" : "bg-red-600/40 text-red-300 cursor-not-allowed"}`}>
+                  EXECUTE TERMINATION
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toast */}
+      {toast && (
+        <div className="fixed bottom-8 right-8 bg-[#020408] border-l-4 border-l-[#d4af37] border border-white/10 text-white px-6 py-4 rounded-lg shadow-xl backdrop-blur-md text-sm font-semibold flex items-center gap-3 z-[60]">
+          <CheckCircle2 className="w-5 h-5 text-[#d4af37]" /><span>{toast}</span>
+        </div>
+      )}
     </div>
   );
 }

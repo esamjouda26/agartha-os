@@ -1,85 +1,160 @@
+/* ── Google Fonts ──────────────────────────────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Inter:wght@300;400;500;600&family=Orbitron:wght@400;500;700&display=swap');
+
 @import "tailwindcss";
 
 @theme {
-  /* ── Core Color Palette ─────────────────────────────────────── */
-  --color-background: #0a0a0f;
-  --color-foreground: #f0f0f5;
-  --color-card: #12121a;
-  --color-card-foreground: #e8e8ed;
-  --color-muted: #1e1e2a;
-  --color-muted-foreground: #8b8b9e;
-  --color-border: #2a2a3a;
-  --color-input: #1a1a26;
-  --color-ring: #6c5ce7;
+  /* ── Legacy Brand Colors (source of truth from all portal HTML files) ─ */
+  --color-space:  #020408;
+  --color-panel:  rgba(10, 20, 30, 0.7);
+  --color-gold:   #d4af37;
+  --color-bronze: #806b45;
 
-  /* ── Brand Accents ──────────────────────────────────────────── */
-  --color-primary: #6c5ce7;
-  --color-primary-foreground: #ffffff;
-  --color-secondary: #1e1e2e;
-  --color-secondary-foreground: #a0a0b8;
-  --color-accent: #00cec9;
-  --color-accent-foreground: #0a0a0f;
-  --color-destructive: #ff4757;
+  /* ── Surface / UI tokens ─────────────────────────────────────────── */
+  --color-background:        #020408;
+  --color-foreground:        #e2e8f0;
+  --color-card:              rgba(10, 20, 30, 0.8);
+  --color-card-foreground:   #e2e8f0;
+  --color-muted:             rgba(255,255,255,0.05);
+  --color-muted-foreground:  #6b7280;
+  --color-border:            rgba(255,255,255,0.1);
+  --color-input:             rgba(255,255,255,0.05);
+  --color-ring:              #d4af37;
+
+  /* ── Semantic accents ────────────────────────────────────────────── */
+  --color-primary:             #d4af37;
+  --color-primary-foreground:  #020408;
+  --color-secondary:           rgba(10,20,30,0.7);
+  --color-secondary-foreground:#e2e8f0;
+  --color-accent:              #806b45;
+  --color-accent-foreground:   #e2e8f0;
+  --color-destructive:         #ff4757;
   --color-destructive-foreground: #ffffff;
-  --color-success: #00b894;
-  --color-warning: #fdcb6e;
+  --color-success:             #00b894;
+  --color-warning:             #fdcb6e;
 
-  /* ── Typography ─────────────────────────────────────────────── */
-  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  /* ── Typography ─────────────────────────────────────────────────── */
+  --font-sans:    var(--font-inter, 'Inter', ui-sans-serif, system-ui, sans-serif);
+  --font-inter:   var(--font-inter, 'Inter', ui-sans-serif, system-ui, sans-serif);
+  --font-cinzel:  var(--font-cinzel, 'Cinzel', serif);
+  --font-orbitron:var(--font-orbitron, 'Orbitron', sans-serif);
 
-  /* ── Radii ──────────────────────────────────────────────────── */
+  /* ── Radii ──────────────────────────────────────────────────────── */
   --radius-sm: 0.375rem;
   --radius-md: 0.5rem;
   --radius-lg: 0.75rem;
   --radius-xl: 1rem;
 }
 
-/* ── Base Resets ────────────────────────────────────────────────── */
-* {
+/* ── Base Resets ────────────────────────────────────────────────────── */
+*, *::before, *::after {
   border-color: var(--color-border);
+  box-sizing: border-box;
+}
+
+html {
+  font-family: var(--font-sans);
 }
 
 body {
-  background-color: var(--color-background);
+  background-color: var(--color-space);
+  background-image: radial-gradient(circle at 50% 0%, rgba(212,175,55,0.05) 0%, transparent 50%);
   color: var(--color-foreground);
+  min-height: 100vh;
+  overflow-x: hidden;
 }
 
-/* ── Scrollbar ─────────────────────────────────────────────────── */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
+/* ── Text Selection ─────────────────────────────────────────────────── */
+::selection        { background: #d4af37 !important; color: #000 !important; }
+::-moz-selection   { background: #d4af37 !important; color: #000 !important; }
 
-::-webkit-scrollbar-track {
-  background: var(--color-background);
-}
+/* ── Scrollbar ─────────────────────────────────────────────────────── */
+::-webkit-scrollbar       { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: rgba(10,20,30,0.5); }
+::-webkit-scrollbar-thumb { background: rgba(212,175,55,0.3); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(212,175,55,0.6); }
 
-::-webkit-scrollbar-thumb {
-  background: var(--color-border);
-  border-radius: 3px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: var(--color-muted-foreground);
-}
-
-/* ── Focus Ring ────────────────────────────────────────────────── */
+/* ── Focus Ring ────────────────────────────────────────────────────── */
 *:focus-visible {
-  outline: 2px solid var(--color-ring);
+  outline: 2px solid #d4af37;
   outline-offset: 2px;
 }
 
-/* ── Glassmorphism Utility ─────────────────────────────────────── */
-.glass {
-  background: rgba(18, 18, 26, 0.6);
+/* ── Glassmorphism Utilities ────────────────────────────────────────── */
+.glass-panel {
+  background-color: rgba(10, 20, 30, 0.7);
   backdrop-filter: blur(12px);
-  border: 1px solid rgba(108, 92, 231, 0.15);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255,255,255,0.1);
 }
 
-/* ── Gradient Text ─────────────────────────────────────────────── */
+.glass-panel-gold {
+  background-color: rgba(10, 20, 30, 0.8);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(212,175,55,0.2);
+}
+
+/* ── VOC Panel (Guest Portal corner-bracket style) ─────────────────── */
+.voc-panel {
+  background: rgba(10, 20, 30, 0.95);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(212,175,55,0.2);
+  box-shadow: 0 4px 30px rgba(0,0,0,0.5);
+  position: relative;
+}
+.voc-panel::before {
+  content: ''; position: absolute; top: -1px; left: -1px;
+  width: 8px; height: 8px;
+  border-top: 1px solid #d4af37; border-left: 1px solid #d4af37;
+}
+.voc-panel::after {
+  content: ''; position: absolute; bottom: -1px; right: -1px;
+  width: 8px; height: 8px;
+  border-bottom: 1px solid #d4af37; border-right: 1px solid #d4af37;
+}
+
+/* ── Sidebar Nav Item ────────────────────────────────────────────────── */
+.nav-item {
+  transition: all 0.3s ease;
+}
+.nav-item:hover,
+.nav-item.active {
+  background: linear-gradient(90deg, rgba(212,175,55,0.1) 0%, transparent 100%);
+  border-left-color: #d4af37 !important;
+  color: #d4af37;
+}
+
+/* ── Font helpers ───────────────────────────────────────────────────── */
+.font-cinzel   { font-family: 'Cinzel', serif; }
+.font-orbitron { font-family: 'Orbitron', sans-serif; }
+.font-inter    { font-family: 'Inter', sans-serif; }
+
+/* ── Gradient Text ─────────────────────────────────────────────────── */
 .text-gradient {
-  background: linear-gradient(135deg, #6c5ce7, #00cec9);
+  background: linear-gradient(135deg, #d4af37, #806b45);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+}
+
+/* ── Utility: hide scrollbar visually ───────────────────────────────── */
+.hide-scrollbar::-webkit-scrollbar { display: none; }
+.hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* ── Animations ─────────────────────────────────────────────────────── */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-fadeIn { animation: fadeIn 0.4s ease-in-out; }
+
+/* ── Crew background (unified with space theme) ────────────────────── */
+.crew-bg {
+  background-color: #020408;
+  background-image:
+    radial-gradient(circle at 50% 0%, rgba(212,175,55,0.05) 0%, transparent 50%),
+    linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+  background-size: 100% 100%, 40px 40px, 40px 40px;
 }

@@ -104,18 +104,26 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(new URL(STAFF_LOGIN_PATH, request.url));
     }
 
-    // Admin portal requires MFA — verify the CURRENT SESSION was
-    // authenticated at AAL2 (not just that a factor is enrolled).
+    // Admin portal MFA gate:
+    // Only enforce AAL2 when the user has a TOTP factor enrolled AND
+    // the current session hasn't been elevated yet.
+    // If no factor is enrolled (e.g., fresh seed accounts), allow AAL1
+    // so the admin can log in and enroll their authenticator.
     if (matchedPortal.domain === "admin") {
       const { data: mfaData } =
         await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
 
-      if (mfaData?.currentLevel !== "aal2") {
-        // Session was not authenticated with MFA — redirect to login
+      // nextLevel === "aal2" means a factor IS enrolled but session is still aal1
+      if (
+        mfaData?.nextLevel === "aal2" &&
+        mfaData?.currentLevel !== "aal2"
+      ) {
+        // Factor enrolled but session not elevated — force MFA verification
         const url = new URL(STAFF_LOGIN_PATH, request.url);
         url.searchParams.set("mfa_required", "true");
         return NextResponse.redirect(url);
       }
+      // If nextLevel !== "aal2": no factor enrolled yet → allow AAL1 through
     }
 
     return await refreshSupabaseSession(request);

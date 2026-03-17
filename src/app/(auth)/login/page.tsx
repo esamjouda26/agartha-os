@@ -95,27 +95,20 @@ export default function StaffLoginPage() {
   }
 
   function redirectByRole(role?: string) {
-    switch (role) {
-      // Admin (2)
-      case "it_admin":
-      case "business_admin":
-        router.push("/admin/access-control");
-        break;
-      // Management (8)
-      case "fnb_manager":
-      case "merch_manager":
-      case "maintenance_manager":
-      case "inventory_manager":
-      case "marketing_manager":
-      case "human_resources_manager":
-      case "compliance_manager":
-      case "operations_manager":
-        router.push("/management/inventory");
-        break;
-      // Crew (9) — default
-      default:
-        router.push("/crew/check-in");
-    }
+    // Each manager role lands on the first tab of their sidebar
+    const ROLE_HOME: Record<string, string> = {
+      it_admin:                 "/admin/access-control",
+      business_admin:           "/admin/executive",
+      fnb_manager:              "/management/fnb/menu",
+      merch_manager:            "/management/merch/catalog",
+      maintenance_manager:      "/management/operations/telemetry",
+      inventory_manager:        "/management/inventory",
+      marketing_manager:        "/management/marketing/campaigns",
+      human_resources_manager:  "/management/hr-roster",
+      compliance_manager:       "/management/hr-roster",
+      operations_manager:       "/management/operations/telemetry",
+    };
+    router.push(ROLE_HOME[role ?? ""] ?? "/crew/check-in");
   }
 
   return (
