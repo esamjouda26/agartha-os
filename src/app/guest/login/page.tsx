@@ -83,7 +83,7 @@ export default function GuestLoginPage() {
 
       {/* Dev Toast */}
       {toast && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-emerald-900/90 border border-emerald-500 text-white px-6 py-3 rounded-full shadow-lg flex items-center gap-3 backdrop-blur-md z-50 animate-[fadeIn_0.3s_ease-in-out]">
+        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 bg-emerald-900/90 border border-emerald-500 text-white px-6 py-3 rounded-full shadow-lg flex items-center gap-3 backdrop-blur-md z-50 animate-[fadeIn_0.3s_ease-in-out]">
           <span className="text-sm font-bold tracking-wide">{toast}</span>
         </div>
       )}
