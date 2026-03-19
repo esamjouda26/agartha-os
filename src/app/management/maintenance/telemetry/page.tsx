@@ -10,14 +10,14 @@ interface Device {
   name: string;
   device_type: string;
   status: string;
-  ip_address: string | null;
-  mac_address: string | null;
+  ip_address: any;
+  mac_address: any;
   firmware_version: string | null;
   commission_date: string | null;
   warranty_expiry: string | null;
   switch_id: string | null;
   zone_id: string | null;
-  spares_available: number;
+  spares_available: number | null;
 }
 
 const statusColors: Record<string, string> = { nominal: '#22c55e', warning: '#eab308', fault: '#ef4444', unreachable: '#4b5563' };
