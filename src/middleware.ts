@@ -1,7 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { jwtVerify } from "jose";
-import { ROLE_PORTAL_ACCESS, type PortalDomain } from "@/types";
+import { ROLE_PORTAL_ACCESS, type PortalDomain, type StaffRole } from "@/types";
 
 // ---------------------------------------------------------------------------
 //  ROUTE PATTERNS
@@ -92,7 +92,7 @@ export async function middleware(request: NextRequest) {
 
     // Extract role from app_metadata (set by admin_set_user_role RPC)
     const staffRole =
-      (user.app_metadata?.staff_role as string) ?? null;
+      (user.app_metadata?.staff_role as StaffRole) ?? null;
 
     if (!staffRole) {
       return NextResponse.redirect(new URL(STAFF_LOGIN_PATH, request.url));

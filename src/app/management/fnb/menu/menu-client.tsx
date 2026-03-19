@@ -1,7 +1,5 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { Utensils, Search, Plus, X, ChefHat, Calculator, Edit2, Trash2 } from "lucide-react";
 import type { MenuItemRow } from "./page";
 
 /* ── Helpers ────────────────────────────────────────────────────────── */
@@ -30,9 +28,31 @@ const locBadge = (loc: string) => (
 );
 
 /* ── Component ──────────────────────────────────────────────────────── */
-interface Ingredient { id: string; name: string; cost_price: number | null; suppliers: { name: string } | null; }
 
-export default function MenuClient({ items, ingredients }: { items: MenuItemRow[]; ingredients: Ingredient[] }) {
+import { useState, useMemo, useTransition } from "react";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
+import { Utensils, Search, Package, ChefHat, Plus, Edit2, Archive, DollarSign, Calculator, UtensilsCrossed, Settings2, Trash2, X, CheckCircle2 } from "lucide-react";
+import { createMenuItemAction } from "../actions";
+
+export interface Ingredient { id: string; name: string; cost_price: number | null; suppliers: { name: string } | null; }
+export interface Ingredient { id: string; name: string; cost_price: number | null; suppliers: { name: string } | null; }
+
+export default function MenuClient({ 
+  items, 
+  ingredients, 
+  count, 
+  initialPage 
+}: { 
+  items: MenuItemRow[]; 
+  ingredients: Ingredient[];
+  count: number;
+  initialPage: number;
+}) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
+  const [isPending, startTransition] = useTransition();
+
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -40,6 +60,18 @@ export default function MenuClient({ items, ingredients }: { items: MenuItemRow[
   const [publishToggle, setPublishToggle] = useState(false);
   const [recipeItems, setRecipeItems] = useState<{ ingredientId: string; qty: number }[]>([{ ingredientId: ingredients[0]?.id ?? "", qty: 1 }]);
   const [sellingPrice, setSellingPrice] = useState(5.20);
+  const [toast, setToast] = useState<string | null>(null);
+
+  const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3500); };
+
+  /* Pagination Logic */
+  const totalPages = Math.ceil(count / 50);
+  const handlePageChange = (newPage: number) => {
+    if (newPage < 1 || newPage > totalPages) return;
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("page", newPage.toString());
+    router.push(`${pathname}?${params.toString()}`);
+  };
 
   const filtered = useMemo(() => {
     return items.filter((item) => {
@@ -146,6 +178,33 @@ export default function MenuClient({ items, ingredients }: { items: MenuItemRow[
               </tbody>
             </table>
           </div>
+          
+          {/* Pagination Footer */}
+          {totalPages > 1 && (
+            <div className="p-4 border-t border-white/10 bg-[#020408]/40 flex items-center justify-between">
+              <span className="text-xs text-gray-500">
+                Page {initialPage} of {totalPages}
+              </span>
+              <div className="flex space-x-2">
+                <button
+                  type="button"
+                  onClick={() => handlePageChange(initialPage - 1)}
+                  disabled={initialPage === 1}
+                  className="px-3 py-1 bg-white/5 hover:bg-white/10 text-white rounded text-xs disabled:opacity-50 transition-colors"
+                >
+                  Previous
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handlePageChange(initialPage + 1)}
+                  disabled={initialPage === totalPages}
+                  className="px-3 py-1 bg-white/5 hover:bg-white/10 text-white rounded text-xs disabled:opacity-50 transition-colors"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </section>
 
@@ -161,91 +220,155 @@ export default function MenuClient({ items, ingredients }: { items: MenuItemRow[
               <button onClick={() => setModalOpen(false)} className="text-gray-400 hover:text-white transition-colors"><X className="w-5 h-5" /></button>
             </div>
 
-            <div className="p-6 space-y-6 max-h-[60vh] overflow-y-auto">
-              {/* Item Name */}
-              <div className="space-y-2">
-                <label className="text-xs text-gray-400 uppercase tracking-widest font-semibold">Item Name</label>
-                <input type="text" placeholder="e.g. Glowing Nachos" className="w-full bg-[#020408] border border-white/10 text-sm text-white rounded-md px-4 py-2 focus:outline-none focus:border-[#d4af37]/50 transition-all" />
-              </div>
+            <form action={(formData) => {
+              startTransition(async () => {
+                try {
+                  const name = formData.get("name") as string;
+                  const category = formData.get("category") as string;
+                  const location = formData.get("location") as string;
+                  
+                  // Extract allergens
+                  const allergens: string[] = [];
+                  ['Contains Nuts', 'Contains Dairy', 'Gluten-Free'].forEach(tag => {
+                    if (formData.get(`allergen_${tag}`) === 'on') allergens.push(tag);
+                  });
 
-              {/* Recipe Builder */}
-              <div className="p-5 rounded border border-white/5 bg-[#010204] space-y-4">
-                <div className="flex justify-between items-end border-b border-white/10 pb-2">
-                  <div>
-                    <p className="text-sm font-bold text-white tracking-wide flex items-center"><ChefHat className="w-4 h-4 mr-2 text-[#d4af37]" /> Recipe Builder</p>
-                    <p className="text-[10px] text-gray-500">Build items using Raw Ingredients OR Prepackaged Items from the Merch catalog.</p>
-                  </div>
-                  <button type="button" onClick={() => setRecipeItems([...recipeItems, { ingredientId: ingredients[0]?.id ?? "", qty: 1 }])} className="text-[10px] uppercase tracking-widest text-[#d4af37] border border-[#d4af37]/30 hover:bg-[#d4af37]/10 px-3 py-1 rounded transition-colors">+ Add Item</button>
+                  const payload = {
+                    name,
+                    category,
+                    location,
+                    unit_price: sellingPrice,
+                    cost_price: baseCost,
+                    status: publishToggle ? "active" : "draft",
+                    allergens: allergens.length > 0 ? allergens : null,
+                    recipeItems: recipeItems.filter(ri => ri.ingredientId !== "")
+                  };
+
+                  const res = await createMenuItemAction(payload);
+                  if (res?.error) {
+                    showToast(`Error creating item: ${res.error}`);
+                  } else {
+                    showToast("Menu Item & Recipe successfully generated.");
+                    setModalOpen(false);
+                    setRecipeItems([{ ingredientId: ingredients[0]?.id ?? "", qty: 1 }]);
+                    setSellingPrice(5.20);
+                  }
+                } catch (e) {
+                  console.error(e);
+                  showToast("Failed to submit");
+                }
+              });
+            }} className="flex flex-col max-h-[75vh]">
+              <div className="p-6 space-y-6 overflow-y-auto flex-1">
+                {/* Item Name */}
+                <div className="space-y-2">
+                  <label className="text-xs text-gray-400 uppercase tracking-widest font-semibold">Item Name</label>
+                  <input name="name" type="text" required placeholder="e.g. Glowing Nachos" className="w-full bg-[#020408] border border-white/10 text-sm text-white rounded-md px-4 py-2 focus:outline-none focus:border-[#d4af37]/50 transition-all" />
                 </div>
-                <div className="space-y-3">
-                  {recipeItems.map((ri, idx) => {
-                    const ing = ingredients.find((p) => p.id === ri.ingredientId);
-                    const lineCost = (ing?.cost_price ?? 0) * ri.qty;
-                    return (
-                      <div key={idx} className="flex items-center space-x-3 text-xs">
-                        <select value={ri.ingredientId} onChange={(e) => { const next = [...recipeItems]; next[idx].ingredientId = e.target.value; setRecipeItems(next); }} className="flex-1 bg-[#020408] border border-white/10 text-gray-300 rounded px-3 py-2 cursor-pointer">
-                          {ingredients.map((p) => <option key={p.id} value={p.id}>{p.name}{p.suppliers ? ` (${p.suppliers.name})` : ""} - RM {(p.cost_price ?? 0).toFixed(2)}/ea</option>)}
-                        </select>
-                        <input type="number" min={1} value={ri.qty} onChange={(e) => { const next = [...recipeItems]; next[idx].qty = parseInt(e.target.value) || 1; setRecipeItems(next); }} className="w-20 bg-[#020408] border border-white/10 text-white rounded px-3 py-2" />
-                        <span className="w-24 text-right text-gray-400 font-mono border-l border-white/10 pl-3">RM {lineCost.toFixed(2)}</span>
-                        <button type="button" onClick={() => setRecipeItems(recipeItems.filter((_, i) => i !== idx))} className="text-red-400 hover:text-red-300"><Trash2 className="w-4 h-4" /></button>
+                
+                {/* Categorization Matrix */}
+                <div className="space-y-2">
+                  <label className="text-xs text-gray-400 uppercase tracking-widest font-semibold">Category</label>
+                  <select name="category" className="w-full bg-[#020408] border border-white/10 text-sm text-[#d4af37] font-semibold tracking-wide rounded-md px-4 py-2 focus:outline-none focus:border-[#d4af37]/50 cursor-pointer">
+                    <option value="hot_food">Hot Food</option>
+                    <option value="snacks_and_sides">Snacks & Sides</option>
+                    <option value="hot_beverage">Hot Beverage</option>
+                    <option value="cold_beverage">Cold Beverage</option>
+                    <option value="bakery_and_dessert">Bakery & Dessert</option>
+                    <option value="combos">Combos</option>
+                    <option value="uncategorized">Uncategorized</option>
+                  </select>
+                </div>
+
+                {/* Recipe Builder */}
+                <div className="p-5 rounded border border-white/5 bg-[#010204] space-y-4">
+                  <div className="flex justify-between items-end border-b border-white/10 pb-2">
+                    <div>
+                      <p className="text-sm font-bold text-white tracking-wide flex items-center"><ChefHat className="w-4 h-4 mr-2 text-[#d4af37]" /> Recipe Builder</p>
+                      <p className="text-[10px] text-gray-500">Build items using Raw Ingredients OR Prepackaged Items from the Merch catalog.</p>
+                    </div>
+                    <button type="button" onClick={() => setRecipeItems([...recipeItems, { ingredientId: ingredients[0]?.id ?? "", qty: 1 }])} className="text-[10px] uppercase tracking-widest text-[#d4af37] border border-[#d4af37]/30 hover:bg-[#d4af37]/10 px-3 py-1 rounded transition-colors">+ Add Item</button>
+                  </div>
+                  <div className="space-y-3">
+                    {recipeItems.map((ri, idx) => {
+                      const ing = ingredients.find((p) => p.id === ri.ingredientId);
+                      const lineCost = (ing?.cost_price ?? 0) * ri.qty;
+                      return (
+                        <div key={`ri-${idx}`} className="flex items-center space-x-3 text-xs">
+                          <select value={ri.ingredientId} onChange={(e) => { const next = [...recipeItems]; next[idx].ingredientId = e.target.value; setRecipeItems(next); }} className="flex-1 bg-[#020408] border border-white/10 text-gray-300 rounded px-3 py-2 cursor-pointer">
+                            {ingredients.map((p) => <option key={p.id} value={p.id}>{p.name}{p.suppliers ? ` (${p.suppliers.name})` : ""} - RM {(p.cost_price ?? 0).toFixed(2)}/ea</option>)}
+                          </select>
+                          <input type="number" min={1} value={ri.qty} onChange={(e) => { const next = [...recipeItems]; next[idx].qty = parseInt(e.target.value) || 1; setRecipeItems(next); }} className="w-20 bg-[#020408] border border-white/10 text-white rounded px-3 py-2" />
+                          <span className="w-24 text-right text-gray-400 font-mono border-l border-white/10 pl-3">RM {lineCost.toFixed(2)}</span>
+                          <button type="button" onClick={() => setRecipeItems(recipeItems.filter((_, i) => i !== idx))} className="text-red-400 hover:text-red-300"><Trash2 className="w-4 h-4" /></button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {/* Allergen Tagging */}
+                  <div className="pt-4 border-t border-white/10 space-y-2">
+                    <label className="text-xs text-gray-400 uppercase tracking-widest font-semibold flex items-center">Allergen Tagging</label>
+                    <div className="flex space-x-4 text-sm text-gray-300">
+                      {["Contains Nuts", "Contains Dairy", "Gluten-Free"].map((tag) => (
+                        <label key={tag} className="flex items-center cursor-pointer"><input name={`allergen_${tag}`} type="checkbox" className="mr-2 accent-[#d4af37]" /> {tag}</label>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Pricing Engine */}
+                <div className="bg-gradient-to-r from-[#d4af37]/5 to-transparent p-5 rounded border border-[#d4af37]/20">
+                  <p className="text-sm font-bold text-[#d4af37] tracking-wide flex items-center mb-4"><Calculator className="w-4 h-4 mr-2" /> Pricing Engine</p>
+                  <div className="grid grid-cols-3 gap-6 items-end">
+                    <div className="space-y-1">
+                      <label className="text-[10px] text-gray-400 uppercase tracking-widest">Base Cost (Auto)</label>
+                      <div className="text-lg font-mono text-gray-300 bg-[#020408] border border-white/5 rounded px-3 py-1.5">RM {baseCost.toFixed(2)}</div>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] text-gray-400 uppercase tracking-widest">Target Margin %</label>
+                      <div className="text-lg font-mono text-gray-400 bg-[#020408] border border-white/5 rounded-md px-3 py-1.5 text-right">{targetMargin.toFixed(1)}%</div>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] text-[#d4af37] uppercase tracking-widest font-bold">Final Selling Price</label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#d4af37] font-orbitron font-bold text-lg">RM</span>
+                        <input type="number" step="0.01" value={sellingPrice} onChange={(e) => setSellingPrice(parseFloat(e.target.value) || 0)} className="w-full bg-[#020408] border border-[#d4af37]/30 shadow-inner text-[#d4af37] font-orbitron font-bold text-2xl rounded px-3 py-1 pl-12 text-right focus:outline-none focus:border-[#d4af37] transition-all" />
                       </div>
-                    );
-                  })}
-                </div>
-                {/* Allergen Tagging */}
-                <div className="pt-4 border-t border-white/10 space-y-2">
-                  <label className="text-xs text-gray-400 uppercase tracking-widest font-semibold flex items-center">Allergen Tagging</label>
-                  <div className="flex space-x-4 text-sm text-gray-300">
-                    {["Contains Nuts", "Contains Dairy", "Gluten-Free"].map((tag) => (
-                      <label key={tag} className="flex items-center cursor-pointer"><input type="checkbox" className="mr-2 accent-[#d4af37]" /> {tag}</label>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* Pricing Engine */}
-              <div className="bg-gradient-to-r from-[#d4af37]/5 to-transparent p-5 rounded border border-[#d4af37]/20">
-                <p className="text-sm font-bold text-[#d4af37] tracking-wide flex items-center mb-4"><Calculator className="w-4 h-4 mr-2" /> Pricing Engine</p>
-                <div className="grid grid-cols-3 gap-6 items-end">
-                  <div className="space-y-1">
-                    <label className="text-[10px] text-gray-400 uppercase tracking-widest">Base Cost (Auto)</label>
-                    <div className="text-lg font-mono text-gray-300 bg-[#020408] border border-white/5 rounded px-3 py-1.5">RM {baseCost.toFixed(2)}</div>
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] text-gray-400 uppercase tracking-widest">Target Margin %</label>
-                    <div className="text-lg font-mono text-gray-400 bg-[#020408] border border-white/5 rounded-md px-3 py-1.5 text-right">{targetMargin.toFixed(1)}%</div>
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] text-[#d4af37] uppercase tracking-widest font-bold">Final Selling Price</label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#d4af37] font-orbitron font-bold text-lg">RM</span>
-                      <input type="number" step="0.01" value={sellingPrice} onChange={(e) => setSellingPrice(parseFloat(e.target.value) || 0)} className="w-full bg-[#020408] border border-[#d4af37]/30 shadow-inner text-[#d4af37] font-orbitron font-bold text-2xl rounded px-3 py-1 pl-12 text-right focus:outline-none focus:border-[#d4af37] transition-all" />
                     </div>
                   </div>
                 </div>
               </div>
-            </div>
 
-            {/* Footer */}
-            <div className="p-5 border-t border-white/10 bg-[#020408]/80 rounded-b-lg flex items-center justify-between">
-              <div className="flex items-center space-x-4 bg-[#010204] px-4 py-2 rounded border border-white/5">
-                <label className="relative inline-block w-10 h-5 cursor-pointer">
-                  <input type="checkbox" checked={publishToggle} onChange={(e) => setPublishToggle(e.target.checked)} className="sr-only peer" />
-                  <div className="w-10 h-5 bg-[#020408] border border-white/10 rounded-full peer-checked:bg-green-500 transition-colors" />
-                  <div className="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full transition-transform peer-checked:translate-x-5" />
-                </label>
-                <div>
-                  <p className={`text-sm font-bold tracking-wide ${publishToggle ? "text-green-400" : "text-white"}`}>{publishToggle ? "Active / Published" : "Draft Status"}</p>
-                  <p className="text-[10px] text-gray-500 uppercase">Toggle to publish to POS / Vending</p>
+              {/* Footer */}
+              <div className="p-5 border-t border-white/10 bg-[#020408]/80 rounded-b-lg flex items-center justify-between mt-auto">
+                <div className="flex items-center space-x-4 bg-[#010204] px-4 py-2 rounded border border-white/5">
+                  <label className="relative inline-block w-10 h-5 cursor-pointer">
+                    <input type="checkbox" checked={publishToggle} onChange={(e) => setPublishToggle(e.target.checked)} className="sr-only peer" />
+                    <div className="w-10 h-5 bg-[#020408] border border-white/10 rounded-full peer-checked:bg-green-500 transition-colors" />
+                    <div className="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full transition-transform peer-checked:translate-x-5" />
+                  </label>
+                  <div>
+                    <p className={`text-sm font-bold tracking-wide ${publishToggle ? "text-green-400" : "text-white"}`}>{publishToggle ? "Active / Published" : "Draft Status"}</p>
+                    <p className="text-[10px] text-gray-500 uppercase">Toggle to publish to POS / Vending</p>
+                  </div>
+                </div>
+                <div className="flex space-x-3">
+                  <button type="button" onClick={() => setModalOpen(false)} className="px-4 py-2 text-sm font-medium rounded text-gray-400 hover:text-white hover:bg-white/5 transition-colors">Cancel</button>
+                  <button type="submit" disabled={isPending} className="px-6 py-2 text-sm font-bold rounded bg-[#d4af37]/20 text-[#d4af37] border border-[#d4af37]/50 hover:bg-[#d4af37] hover:text-[#020408] transition-all shadow-[0_0_10px_rgba(212,175,55,0.2)] disabled:opacity-50">
+                    {isPending ? "Saving..." : "Save Item"}
+                  </button>
                 </div>
               </div>
-              <div className="flex space-x-3">
-                <button type="button" onClick={() => setModalOpen(false)} className="px-4 py-2 text-sm font-medium rounded text-gray-400 hover:text-white hover:bg-white/5 transition-colors">Cancel</button>
-                <button type="button" onClick={() => setModalOpen(false)} className="px-6 py-2 text-sm font-bold rounded bg-[#d4af37]/20 text-[#d4af37] border border-[#d4af37]/50 hover:bg-[#d4af37] hover:text-[#020408] transition-all shadow-[0_0_10px_rgba(212,175,55,0.2)]">Save Item</button>
-              </div>
-            </div>
+            </form>
           </div>
+        </div>
+      )}
+
+      {/* Toast */}
+      {toast && (
+        <div className="fixed bottom-24 right-8 bg-[#020408] border border-[#d4af37]/40 text-[#d4af37] px-6 py-3 rounded-lg shadow-lg backdrop-blur-sm text-sm font-semibold flex items-center gap-2 z-50">
+          <CheckCircle2 className="w-5 h-5" />
+          <span>{toast}</span>
         </div>
       )}
     </div>

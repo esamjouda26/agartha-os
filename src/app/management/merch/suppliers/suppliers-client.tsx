@@ -1,34 +1,36 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { Truck, Building2, CheckCircle, Archive, Search, Plus, X, Edit2 } from "lucide-react";
+import { useState, useMemo, useTransition } from "react";
+import { Truck, Building2, CheckCircle, Archive, Search, Plus, X, Edit2, Loader2 } from "lucide-react";
 import type { SupplierRow } from "./page";
-
-/* ── Helpers ────────────────────────────────────────────────────────── */
-const TERMS_STYLE: Record<string, string> = {
-  "Net 15": "bg-blue-500/10 text-blue-400 border-blue-500/20",
-  "Net 30": "bg-green-500/10 text-green-400 border-green-500/20",
-  "Net 60": "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
-  COD:      "bg-[#d4af37]/10 text-[#d4af37] border-[#d4af37]/20",
-};
+import { createSupplierAction } from "../actions";
 
 /* ── Component ──────────────────────────────────────────────────────── */
 export default function SuppliersClient({ suppliers }: { suppliers: SupplierRow[] }) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [modalOpen, setModalOpen] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+  const [toastType, setToastType] = useState<"success" | "error">("success");
+  const [isPending, startTransition] = useTransition();
+
+  function showToast(msg: string, type: "success" | "error" = "success") {
+    setToast(msg);
+    setToastType(type);
+    setTimeout(() => setToast(null), 4000);
+  }
 
   const totalVendors = suppliers.length;
-  const activeCount = suppliers.filter((s) => s.status !== "inactive").length;
-  const inactiveCount = suppliers.filter((s) => s.status === "inactive").length;
+  const activeCount = suppliers.filter((s) => s.is_active).length;
+  const inactiveCount = suppliers.filter((s) => !s.is_active).length;
 
   const filtered = useMemo(() => {
     return suppliers.filter((s) => {
       const q = search.toLowerCase();
-      const matchSearch = !q || s.name.toLowerCase().includes(q) || (s.contact_person ?? "").toLowerCase().includes(q) || (s.ssm_number ?? "").includes(q) || s.id.toLowerCase().includes(q);
+      const matchSearch = !q || s.name.toLowerCase().includes(q) || s.id.toLowerCase().includes(q);
       const matchStatus = statusFilter === "all" ||
-        (statusFilter === "Active" && s.status !== "inactive") ||
-        (statusFilter === "Inactive" && s.status === "inactive");
+        (statusFilter === "Active" && s.is_active) ||
+        (statusFilter === "Inactive" && !s.is_active);
       return matchSearch && matchStatus;
     });
   }, [suppliers, search, statusFilter]);
@@ -108,29 +110,24 @@ export default function SuppliersClient({ suppliers }: { suppliers: SupplierRow[
                 <tr>
                   <th className="px-5 py-4 font-semibold">Supplier ID</th>
                   <th className="px-5 py-4 font-semibold">Company Name</th>
-                  <th className="px-5 py-4 font-semibold">SSM Number</th>
-                  <th className="px-5 py-4 font-semibold">Contact Person</th>
                   <th className="px-5 py-4 font-semibold">Phone</th>
                   <th className="px-5 py-4 font-semibold">Email</th>
-                  <th className="px-5 py-4 font-semibold">Payment Terms</th>
+                  <th className="px-5 py-4 font-semibold">Rating</th>
                   <th className="px-5 py-4 font-semibold">Status</th>
                   <th className="px-5 py-4 font-semibold text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5 text-xs">
                 {filtered.length === 0 ? (
-                  <tr><td colSpan={9} className="px-5 py-10 text-center text-gray-500 text-xs">No suppliers found.</td></tr>
+                  <tr><td colSpan={7} className="px-5 py-10 text-center text-gray-500 text-xs">No suppliers found.</td></tr>
                 ) : filtered.map((s) => {
-                  const isInactive = s.status === "inactive";
-                  const termsCls = TERMS_STYLE[s.payment_terms ?? ""] ?? "bg-gray-500/10 text-gray-400 border-gray-500/20";
+                  const isInactive = !s.is_active;
                   return (
                     <tr key={s.id} className={`hover:bg-white/[0.02] transition-colors ${isInactive ? "opacity-50" : ""}`}>
                       <td className="px-5 py-4">
                         <span className="bg-[#020408] px-2 py-1 rounded border border-white/10 text-gray-400 font-mono text-[11px]">{s.id.slice(0, 8)}</span>
                       </td>
                       <td className="px-5 py-4"><p className="text-gray-200 font-bold font-sans tracking-wide">{s.name}</p></td>
-                      <td className="px-5 py-4 text-gray-400 font-mono">{s.ssm_number ?? "—"}</td>
-                      <td className="px-5 py-4 text-gray-300 font-sans">{s.contact_person ?? "—"}</td>
                       <td className="px-5 py-4 text-gray-400 font-sans">{s.contact_phone ?? "—"}</td>
                       <td className="px-5 py-4">
                         {s.contact_email ? (
@@ -138,8 +135,8 @@ export default function SuppliersClient({ suppliers }: { suppliers: SupplierRow[
                         ) : <span className="text-gray-600">—</span>}
                       </td>
                       <td className="px-5 py-4">
-                        <span className={`px-2 py-0.5 rounded border text-[10px] font-sans font-semibold ${termsCls}`}>
-                          {s.payment_terms ?? "—"}
+                        <span className={`text-[11px] font-sans font-semibold text-gray-300`}>
+                          {s.rating ? `${s.rating}/5` : "—"}
                         </span>
                       </td>
                       <td className="px-5 py-4">
@@ -175,59 +172,66 @@ export default function SuppliersClient({ suppliers }: { suppliers: SupplierRow[
               </button>
             </div>
             <div className="p-6 space-y-5 max-h-[65vh] overflow-y-auto">
-              <form onSubmit={(e) => { e.preventDefault(); setModalOpen(false); /* TODO: Bind to Server Action */ }} className="space-y-5">
+              <form action={async (formData) => {
+                startTransition(async () => {
+                  const res = await createSupplierAction(formData);
+                  if (res?.error) {
+                    showToast(`Error: ${res.error}`, "error");
+                  } else {
+                    showToast("Supplier saved successfully.");
+                    setModalOpen(false);
+                  }
+                });
+              }} className="space-y-5">
                 <div className="grid grid-cols-2 gap-5">
                   <div className="space-y-2">
                     <label className="text-xs text-gray-400 uppercase tracking-widest font-semibold">Company Name <span className="text-red-400">*</span></label>
-                    <input type="text" placeholder="e.g. Mega Souvenirs Sdn Bhd" className="w-full bg-[#020408] border border-white/10 text-sm text-white rounded-md px-4 py-2 focus:outline-none focus:border-[#d4af37]/50 transition-all" required />
+                    <input type="text" name="name" placeholder="e.g. Mega Souvenirs Sdn Bhd" className="w-full bg-[#020408] border border-white/10 text-sm text-white rounded-md px-4 py-2 focus:outline-none focus:border-[#d4af37]/50 transition-all" required />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-xs text-gray-400 uppercase tracking-widest font-semibold">SSM Number <span className="text-red-400">*</span></label>
-                    <input type="text" placeholder="e.g. 202001012345" className="w-full bg-[#020408] border border-white/10 text-sm text-white rounded-md px-4 py-2 focus:outline-none focus:border-[#d4af37]/50 transition-all" required />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-5">
-                  <div className="space-y-2">
-                    <label className="text-xs text-gray-400 uppercase tracking-widest font-semibold">SST Number <span className="text-gray-600">(Optional)</span></label>
-                    <input type="text" placeholder="W10-1234-56789012" className="w-full bg-[#020408] border border-white/10 text-sm text-white rounded-md px-4 py-2 focus:outline-none focus:border-[#d4af37]/50 transition-all" />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-xs text-gray-400 uppercase tracking-widest font-semibold">Contact Person <span className="text-red-400">*</span></label>
-                    <input type="text" placeholder="e.g. Ahmad Razif" className="w-full bg-[#020408] border border-white/10 text-sm text-white rounded-md px-4 py-2 focus:outline-none focus:border-[#d4af37]/50 transition-all" required />
+                    <label className="text-xs text-gray-400 uppercase tracking-widest font-semibold">Supplier Category <span className="text-red-400">*</span></label>
+                    <select name="category" className="w-full bg-[#020408] border border-white/10 text-sm text-gray-300 rounded-md px-4 py-2 focus:outline-none focus:border-[#d4af37]/50 cursor-pointer">
+                      <option value="retail">Retail Items</option>
+                      <option value="food">Fresh Produce</option>
+                      <option value="beverage">Beverage</option>
+                      <option value="equipment">Equipment</option>
+                      <option value="packaging">Packaging</option>
+                    </select>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-5">
                   <div className="space-y-2">
                     <label className="text-xs text-gray-400 uppercase tracking-widest font-semibold">Phone Number <span className="text-red-400">*</span></label>
-                    <input type="tel" placeholder="+60 12-345 6789" className="w-full bg-[#020408] border border-white/10 text-sm text-white rounded-md px-4 py-2 focus:outline-none focus:border-[#d4af37]/50 transition-all" required />
+                    <input type="tel" name="contact_phone" placeholder="+60 12-345 6789" className="w-full bg-[#020408] border border-white/10 text-sm text-white rounded-md px-4 py-2 focus:outline-none focus:border-[#d4af37]/50 transition-all" required />
                   </div>
                   <div className="space-y-2">
                     <label className="text-xs text-gray-400 uppercase tracking-widest font-semibold">Email Address <span className="text-red-400">*</span></label>
-                    <input type="email" placeholder="orders@company.com" className="w-full bg-[#020408] border border-white/10 text-sm text-white rounded-md px-4 py-2 focus:outline-none focus:border-[#d4af37]/50 transition-all" required />
+                    <input type="email" name="contact_email" placeholder="orders@company.com" className="w-full bg-[#020408] border border-white/10 text-sm text-white rounded-md px-4 py-2 focus:outline-none focus:border-[#d4af37]/50 transition-all" required />
                   </div>
                 </div>
                 <div className="space-y-2">
                   <label className="text-xs text-gray-400 uppercase tracking-widest font-semibold">Physical / Billing Address</label>
-                  <textarea rows={2} placeholder="Unit 5, Lot 1234, Jalan Industri Utama..." className="w-full bg-[#020408] border border-white/10 text-sm text-white rounded-md px-4 py-2 focus:outline-none focus:border-[#d4af37]/50 transition-all resize-none" />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-xs text-gray-400 uppercase tracking-widest font-semibold">Payment Terms</label>
-                  <select className="w-full bg-[#020408] border border-white/10 text-sm text-gray-300 rounded-md px-4 py-2 focus:outline-none focus:border-[#d4af37]/50 cursor-pointer">
-                    <option value="Net 15">Net 15</option>
-                    <option value="Net 30">Net 30</option>
-                    <option value="Net 60">Net 60</option>
-                    <option value="COD">COD (Cash on Delivery)</option>
-                  </select>
+                  <textarea rows={2} name="address" placeholder="Unit 5, Lot 1234, Jalan Industri Utama..." className="w-full bg-[#020408] border border-white/10 text-sm text-white rounded-md px-4 py-2 focus:outline-none focus:border-[#d4af37]/50 transition-all resize-none" />
                 </div>
                 <div className="flex justify-end space-x-3 pt-2">
-                  <button type="button" onClick={() => setModalOpen(false)} className="px-4 py-2 text-sm font-medium rounded text-gray-400 hover:text-white hover:bg-white/5 transition-colors">Cancel</button>
-                  <button type="submit" className="px-6 py-2 text-sm font-bold rounded bg-[#d4af37]/20 text-[#d4af37] border border-[#d4af37]/50 hover:bg-[#d4af37] hover:text-[#020408] transition-all shadow-[0_0_10px_rgba(212,175,55,0.2)]">
-                    Save Supplier
+                  <button type="button" onClick={() => setModalOpen(false)} disabled={isPending} className="px-4 py-2 text-sm font-medium rounded text-gray-400 hover:text-white hover:bg-white/5 transition-colors disabled:opacity-50">Cancel</button>
+                  <button type="submit" disabled={isPending} className="px-6 py-2 text-sm font-bold rounded bg-[#d4af37]/20 text-[#d4af37] border border-[#d4af37]/50 hover:bg-[#d4af37] hover:text-[#020408] transition-all flex items-center shadow-[0_0_10px_rgba(212,175,55,0.2)] disabled:opacity-50">
+                    {isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving...</> : "Save Supplier"}
                   </button>
                 </div>
               </form>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ═══ Toast ═══ */}
+      {toast && (
+        <div className={`fixed bottom-24 right-8 px-6 py-3 rounded-lg shadow-lg backdrop-blur-sm text-sm font-semibold flex items-center space-x-2 z-50 animate-in slide-in-from-bottom-4 ${
+          toastType === "error" ? "bg-red-500/20 border border-red-500/40 text-red-400" : "bg-green-500/20 border border-green-500/40 text-green-400"
+        }`}>
+          {toastType === "error" ? <X className="w-5 h-5" /> : <CheckCircle className="w-5 h-5" />}
+          <span>{toast}</span>
         </div>
       )}
     </div>

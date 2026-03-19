@@ -4,7 +4,6 @@ import SupplierPOsClient from "./supplier-pos-client";
 /* ── Types ─────────────────────────────────────────────────────────── */
 export interface PurchaseOrderRow {
   id: string;
-  po_number: string | null;
   supplier_id: string | null;
   status: string;
   total_amount: number | null;
@@ -12,9 +11,10 @@ export interface PurchaseOrderRow {
   suppliers: { id: string; name: string; contact_email: string | null } | null;
   purchase_order_items: {
     id: string;
-    quantity: number;
-    unit_cost: number;
-    products: { id: string; name: string } | null;
+    expected_qty: number;
+    received_qty: number;
+    item_name: string;
+    products: { id: string; name: string; cost_price: number | null } | null;
   }[];
 }
 
@@ -24,9 +24,9 @@ export default async function MerchPOSPage() {
   const { data } = await supabase
     .from("purchase_orders")
     .select(`
-      id, po_number, supplier_id, status, total_amount, created_at,
+      id, supplier_id, status, total_amount, created_at,
       suppliers(id, name, contact_email),
-      purchase_order_items(id, quantity, unit_cost, products(id, name))
+      purchase_order_items(id, expected_qty, received_qty, item_name, products(id, name, cost_price))
     `)
     .order("created_at", { ascending: false }) as { data: PurchaseOrderRow[] | null };
 

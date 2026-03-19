@@ -237,7 +237,7 @@ export async function fetchCrewForDeploymentAction(date: string) {
   const { data: staffRecords } = await supabase
     .from("staff_records")
     .select("id, user_id, employee_id, legal_name, role")
-    .in("employment_status", ["active", "probation"])
+    .in("employment_status", ["active", "pending"])
     .order("role")
     .order("legal_name");
 

@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { Trash2, Search, DownloadCloud, Calendar, Clock, AlertTriangle, Droplet, MoreHorizontal } from "lucide-react";
+import { useState, useMemo, useTransition } from "react";
+import { Trash2, Search, DownloadCloud, Calendar, Clock, AlertTriangle, Droplet, MoreHorizontal, Plus, X, CheckCircle2 } from "lucide-react";
 import type { WasteRow } from "./page";
+import { submitWasteLogAction } from "../actions";
 
 /* ── Reason styling ─────────────────────────────────────────────────── */
 const REASON_MAP: Record<string, { icon: typeof Clock; cls: string; label: string }> = {
@@ -22,16 +23,9 @@ function reasonBadge(reason: string) {
   );
 }
 
-/* ── Synthetic fallback data ────────────────────────────────────────── */
-const FALLBACK: WasteRow[] = [
-  { id: "1", item_name: "Lays Classic Chips 50g", category: "Retail", location: "Vending: Zone B-2", supplier_name: "SnackCo Distributors", reason: "expired", quantity: 12, unit: "units", cost_impact: 18.00, logged_at: new Date().toISOString() },
-  { id: "2", item_name: "Fresh Strawberries", category: "Raw Ingredient", location: "Café Kitchen", supplier_name: "FreshFarms Local", reason: "supplier", quantity: 2.5, unit: "kg", cost_impact: 45.00, logged_at: new Date().toISOString() },
-  { id: "3", item_name: "Agartha Blue Lemonade", category: "Prepared Item", location: "Café POS 1", supplier_name: null, reason: "dropped", quantity: 1, unit: "unit", cost_impact: 2.45, logged_at: new Date(Date.now() - 86400000).toISOString() },
-];
-
 /* ── Component ──────────────────────────────────────────────────────── */
-export default function WasteClient({ wasteLogs }: { wasteLogs: WasteRow[] }) {
-  const logs = wasteLogs.length > 0 ? wasteLogs : FALLBACK;
+export default function WasteClient({ wasteLogs, menuItems, locations }: { wasteLogs: WasteRow[]; menuItems: any[]; locations: any[] }) {
+  const logs = wasteLogs;
   const [search, setSearch] = useState("");
   const [locFilter, setLocFilter] = useState("all");
   const [catFilter, setCatFilter] = useState("all");
@@ -46,6 +40,38 @@ export default function WasteClient({ wasteLogs }: { wasteLogs: WasteRow[] }) {
     if (reasonFilter !== "all" && w.reason !== reasonFilter) return false;
     return true;
   }), [logs, search, locFilter, catFilter, reasonFilter]);
+
+  const [wasteModal, setWasteModal] = useState(false);
+  const [isPending, startTransition] = useTransition();
+
+  const [wLoc, setWLoc] = useState(locations.length > 0 ? locations[0].id : "");
+  const [wItem, setWItem] = useState("");
+  const [wQty, setWQty] = useState(1);
+  const [wReason, setWReason] = useState<"expired_eod" | "dropped_spilled" | "contaminated" | "prep_error">("expired_eod");
+  const [toast, setToast] = useState<string | null>(null);
+
+  const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3500); };
+
+  function handleLogWaste() {
+    if (!wItem || wQty < 1 || !wLoc) {
+       showToast("Please fill all required fields.");
+       return;
+    }
+    startTransition(async () => {
+      const res = await submitWasteLogAction({
+        location_id: wLoc,
+        wastedItems: [{ menu_item_id: wItem, quantity: wQty, reason: wReason }],
+      });
+      if (res?.error) {
+         showToast(`Error: ${res.error}`);
+      } else {
+         showToast("Waste logged! Exact sub-ingredients have been deducted.");
+         setWasteModal(false);
+         setWItem("");
+         setWQty(1);
+      }
+    });
+  }
 
   /* KPIs */
   const totalLoss = logs.reduce((s, w) => s + w.cost_impact, 0);
@@ -65,6 +91,9 @@ export default function WasteClient({ wasteLogs }: { wasteLogs: WasteRow[] }) {
           <p className="text-xs text-gray-400 mt-1 uppercase tracking-widest">Operational Loss &amp; Vendor Quality Tracking</p>
         </div>
         <div className="flex items-center space-x-4">
+          <button onClick={() => setWasteModal(true)} className="bg-red-500/20 text-red-400 border border-red-500/50 hover:bg-red-500 hover:text-white font-bold px-4 py-2 rounded transition-all flex items-center text-sm uppercase tracking-widest">
+            <Plus className="w-4 h-4 mr-2" /> Log Waste
+          </button>
           <div className="glass-panel rounded-lg p-1 flex items-center space-x-1 border-[#d4af37]/20 shadow-[0_4px_15px_rgba(0,0,0,0.3)]">
             {["Today", "7D", "MTD", "YTD"].map((d) => (
               <button key={d} onClick={() => setDateRange(d)} className={`px-4 py-1.5 text-sm rounded transition-all ${dateRange === d ? "font-bold bg-[#d4af37]/20 text-[#d4af37] border border-[#d4af37]/50" : "font-medium text-gray-400 hover:text-gray-200 hover:bg-white/5"}`}>{d}</button>
@@ -175,6 +204,64 @@ export default function WasteClient({ wasteLogs }: { wasteLogs: WasteRow[] }) {
           </div>
         </div>
       </section>
+
+      {/* ═══ WASTE MODAL ═══ */}
+      {wasteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#020408]/80 backdrop-blur-sm overflow-y-auto pt-10 pb-10" onClick={() => setWasteModal(false)}>
+          <div className="glass-panel rounded-lg w-full max-w-md border-red-500/30 shadow-[0_10px_40px_rgba(239,68,68,0.15)] flex flex-col my-auto relative" onClick={(e) => e.stopPropagation()}>
+            <div className="p-5 border-b border-white/10 flex justify-between items-center bg-[#020408]/50 rounded-t-lg">
+              <h3 className="font-cinzel text-lg text-red-400 flex items-center tracking-wider"><Trash2 className="w-5 h-5 mr-2" /> Log Operational Loss</h3>
+              <button onClick={() => setWasteModal(false)} className="text-gray-400 hover:text-white transition-colors"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="p-6 space-y-5">
+              <div className="space-y-2">
+                <label className="text-xs text-gray-400 uppercase tracking-widest font-semibold">Location</label>
+                <select value={wLoc} onChange={e => setWLoc(e.target.value)} className="w-full bg-[#020408] border border-white/10 text-sm text-gray-300 rounded-md px-4 py-2 focus:outline-none focus:border-red-500/50">
+                  {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs text-gray-400 uppercase tracking-widest font-semibold">Menu / Recipe Item</label>
+                <select value={wItem} onChange={e => setWItem(e.target.value)} className="w-full bg-[#020408] border border-white/10 text-sm text-gray-300 rounded-md px-4 py-2 focus:outline-none focus:border-red-500/50">
+                  <option value="">Select Item...</option>
+                  {menuItems.map(m => <option key={m.id} value={m.id}>{m.name} ({m.category})</option>)}
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs text-gray-400 uppercase tracking-widest font-semibold">Quantity Wasted</label>
+                <input type="number" min="1" value={wQty} onChange={e => setWQty(Number(e.target.value))} className="w-full bg-[#020408] border border-white/10 text-sm font-mono text-white rounded-md px-4 py-2 focus:outline-none focus:border-red-500/50" />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs text-gray-400 uppercase tracking-widest font-semibold">Reason Code</label>
+                <select value={wReason} onChange={e => setWReason(e.target.value as any)} className="w-full bg-[#020408] border border-white/10 text-sm text-gray-300 rounded-md px-4 py-2 focus:outline-none focus:border-red-500/50">
+                  <option value="expired_eod">Expired / EOD</option>
+                  <option value="dropped_spilled">Dropped / Spilled</option>
+                  <option value="prep_error">Prep Error</option>
+                  <option value="contaminated">Contaminated / Poor Quality</option>
+                </select>
+              </div>
+              <div className="bg-orange-500/10 border border-orange-500/20 p-3 rounded flex items-start gap-3">
+                <AlertTriangle className="w-4 h-4 text-orange-400 mt-0.5" />
+                <p className="text-xs text-orange-300">Logging this waste will immediately deduce all associated raw fractional ingredients attached to the Recipe BOM from the selected location&apos;s active stock.</p>
+              </div>
+            </div>
+            <div className="p-5 border-t border-white/10 bg-[#020408]/80 rounded-b-lg flex justify-end gap-3">
+              <button disabled={isPending} onClick={() => setWasteModal(false)} className="px-4 py-2 text-sm font-medium rounded text-gray-400 hover:text-white hover:bg-white/5 transition-colors disabled:opacity-50">Cancel</button>
+              <button disabled={isPending} onClick={handleLogWaste} className="px-6 py-2 text-sm font-bold rounded bg-red-500/20 text-red-400 border border-red-500/50 hover:bg-red-500 hover:text-white transition-all shadow-[0_0_10px_rgba(239,68,68,0.2)] disabled:opacity-50">
+                {isPending ? "Logging..." : "Confirm & Deduct"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toast */}
+      {toast && (
+        <div className="fixed bottom-24 right-8 bg-[#020408] border border-[#d4af37]/40 text-[#d4af37] px-6 py-3 rounded-lg shadow-lg backdrop-blur-sm text-sm font-semibold flex items-center gap-2 z-50">
+          <CheckCircle2 className="w-5 h-5" />
+          <span>{toast}</span>
+        </div>
+      )}
     </div>
   );
 }

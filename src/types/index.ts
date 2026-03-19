@@ -10,8 +10,8 @@ export type * from "./database.types";
 export interface AuthSession {
   userId: string;
   email: string;
-  appRole: import("./database.types").AppRole;
-  staffRole: import("./database.types").StaffRole | null;
+  appRole: string; // or explicit literal if preferred
+  staffRole: StaffRole | null;
   isMfaEnabled: boolean;
 }
 
@@ -29,11 +29,19 @@ export interface GuestSession {
  */
 export type PortalDomain = "guest" | "crew" | "management" | "admin";
 
+export type StaffRole =
+  | "it_admin" | "business_admin" | "fnb_manager" | "merch_manager"
+  | "maintenance_manager" | "inventory_manager" | "marketing_manager"
+  | "human_resources_manager" | "compliance_manager" | "operations_manager"
+  | "fnb_crew" | "service_crew" | "giftshop_crew" | "runner_crew"
+  | "security_crew" | "health_crew" | "cleaning_crew" | "experience_crew"
+  | "internal_maintainence_crew";
+
 /**
  * Map of staff_role values to the portal domains they're allowed to access.
  * Exactly 19 roles mapped to their respective portal tiers.
  */
-export const ROLE_PORTAL_ACCESS: Record<string, PortalDomain[]> = {
+export const ROLE_PORTAL_ACCESS: Record<StaffRole, PortalDomain[]> = {
   // ── Admin (2) ─────────────────────────────────────────────────────────
   it_admin: ["admin", "management", "crew"],
   business_admin: ["admin", "management", "crew"],

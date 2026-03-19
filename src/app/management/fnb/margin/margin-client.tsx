@@ -16,7 +16,6 @@ function healthStatus(target: number, actual: number): { label: string; cls: str
 export default function MarginClient({ items }: { items: MarginRow[] }) {
   const [search, setSearch] = useState("");
   const [catFilter, setCatFilter] = useState("all");
-  const [locFilter, setLocFilter] = useState("all");
   const [dateRange, setDateRange] = useState("Today");
 
   const enriched = useMemo(() => items.map((item) => {
@@ -34,10 +33,9 @@ export default function MarginClient({ items }: { items: MarginRow[] }) {
   const filtered = useMemo(() => enriched.filter((item) => {
     const q = search.toLowerCase();
     if (q && !item.name.toLowerCase().includes(q)) return false;
-    if (catFilter !== "all" && item.category !== catFilter) return false;
-    if (locFilter !== "all" && !(item.location ?? "").toLowerCase().includes(locFilter)) return false;
+    if (catFilter !== "all" && item.menu_category !== catFilter) return false;
     return true;
-  }), [enriched, search, catFilter, locFilter]);
+  }), [enriched, search, catFilter]);
 
   /* Global KPIs */
   const blendedTarget = enriched.length > 0 ? enriched.reduce((s, r) => s + r.targetMargin, 0) / enriched.length : 0;
@@ -103,13 +101,13 @@ export default function MarginClient({ items }: { items: MarginRow[] }) {
             <div className="flex items-center space-x-3">
               <select value={catFilter} onChange={(e) => setCatFilter(e.target.value)} className="bg-[#020408] border border-white/10 text-xs text-gray-300 rounded-md px-3 py-2 pr-8 focus:outline-none focus:border-[#d4af37]/50 cursor-pointer">
                 <option value="all">Category: All</option>
-                <option value="prepared_item">Prepared Items</option>
-                <option value="prepackaged">Retail / Pre-packaged</option>
-              </select>
-              <select value={locFilter} onChange={(e) => setLocFilter(e.target.value)} className="bg-[#020408] border border-white/10 text-xs text-gray-300 rounded-md px-3 py-2 pr-8 focus:outline-none focus:border-[#d4af37]/50 cursor-pointer">
-                <option value="all">Location: All</option>
-                <option value="café">Café</option>
-                <option value="vending">Vending Machines</option>
+                <option value="hot_food">Hot Food</option>
+                <option value="snacks_and_sides">Snacks & Sides</option>
+                <option value="hot_beverage">Hot Beverage</option>
+                <option value="cold_beverage">Cold Beverage</option>
+                <option value="bakery_and_dessert">Bakery</option>
+                <option value="combos">Combos</option>
+                <option value="uncategorized">Uncategorized</option>
               </select>
             </div>
           </div>
@@ -118,7 +116,6 @@ export default function MarginClient({ items }: { items: MarginRow[] }) {
               <thead className="text-xs text-gray-500 uppercase tracking-wider bg-[#010204] border-b border-white/10">
                 <tr>
                   <th className="px-6 py-4 font-semibold">Menu Item</th>
-                  <th className="px-6 py-4 font-semibold">Location</th>
                   <th className="px-6 py-4 font-semibold text-center">Items Sold</th>
                   <th className="px-6 py-4 font-semibold text-right">Base Cost</th>
                   <th className="px-6 py-4 font-semibold text-center">Target Margin</th>
@@ -132,7 +129,7 @@ export default function MarginClient({ items }: { items: MarginRow[] }) {
                 {filtered.length === 0 ? (
                   <tr><td colSpan={9} className="px-6 py-10 text-center text-gray-500 text-xs">No menu items found.</td></tr>
                 ) : filtered.map((r) => {
-                  const catLabel = r.category === "prepackaged" ? "Retail" : "Prepared Item";
+                  const catLabel = r.menu_category.replace(/_/g, " ").toUpperCase();
                   const health = healthStatus(r.targetMargin, r.actualMargin);
                   const Icon = health.icon;
                   const marginColor = r.actualMargin >= r.targetMargin * 0.95 ? "text-white" : r.actualMargin >= r.targetMargin * 0.8 ? "text-yellow-500" : "text-red-400";
@@ -141,9 +138,8 @@ export default function MarginClient({ items }: { items: MarginRow[] }) {
                     <tr key={r.id} className={`hover:bg-white/[0.02] transition-colors group ${health.bgRow}`}>
                       <td className="px-6 py-4">
                         <p className="text-gray-200 font-bold mb-0.5">{r.name}</p>
-                        <span className="text-[9px] text-gray-500 uppercase tracking-widest font-mono">{catLabel}</span>
+                        <span className="text-[9px] text-gray-500 tracking-widest font-mono">{catLabel}</span>
                       </td>
-                      <td className="px-6 py-4 text-gray-400 text-xs">{r.location ?? "Café"}</td>
                       <td className="px-6 py-4 font-mono text-white text-center">{r.itemsSold}</td>
                       <td className="px-6 py-4 font-mono text-gray-300 text-right">RM {r.cost.toFixed(2)}</td>
                       <td className="px-6 py-4 font-mono text-gray-400 text-center">{r.targetMargin.toFixed(1)}%</td>

@@ -5,10 +5,9 @@ import MarginClient from "./margin-client";
 export interface MarginRow {
   id: string;
   name: string;
-  category: string;
+  menu_category: string;
   unit_price: number | null;
   cost_price: number | null;
-  location: string | null;
 }
 
 /* ── Page (Server Component) ──────────────────────────────────────── */
@@ -16,7 +15,7 @@ export default async function FnBMarginPage() {
   const supabase = await createClient();
   const { data: items } = await supabase
     .from("fnb_menu_items")
-    .select("id, name, category, unit_price, cost_price, location")
+    .select("id, name, menu_category, unit_price, cost_price")
     .eq("status", "available")
     .order("name") as { data: MarginRow[] | null };
 

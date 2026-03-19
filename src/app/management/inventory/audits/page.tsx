@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useTransition } from "react";
 import {
   ClipboardCheck, Search, Calendar, Activity, AlertTriangle, TrendingDown,
   CalendarPlus, X, RefreshCw, Eye, CheckCircle2, EyeOff,
 } from "lucide-react";
-import { fetchStockLocationsAction, fetchRunnersAction } from "../actions";
+import { fetchStockLocationsAction, fetchRunnersAction, fetchAuditsAction, fetchAuditItemsAction, reconcileAuditAction } from "../actions";
 import DomainAuditTable from "@/components/DomainAuditTable";
 
 // ── Types ───────────────────────────────────────────────────────────────────
@@ -23,21 +23,6 @@ interface AuditCycle {
 interface ReconItem {
   id: string; name: string; expected: number; counted: number; costPerUnit: number;
 }
-
-// ── Mock Data (will be replaced by Supabase when inventory_audits is populated) ──
-
-const INITIAL_AUDITS: AuditCycle[] = [
-  { id: "AUD-3042", date: "Today, 08:00 AM", location: "Café", scope: "Raw Ingredients Only", runner: "Team Alpha", expectedQty: 450, countedQty: 442, varianceRm: -145.50, status: "Needs Reconciliation", hasVariance: true },
-  { id: "AUD-3043", date: "Today, 14:00 PM", location: "Warehouse", scope: "Full Location Count", runner: "Team Beta", expectedQty: 5200, countedQty: null, varianceRm: null, status: "Active", hasVariance: false },
-  { id: "AUD-3044", date: "Tomorrow, 09:00 AM", location: "Vending", scope: "Prepackaged Only", runner: "Auto-Assign", expectedQty: 150, countedQty: null, varianceRm: null, status: "Scheduled", hasVariance: false },
-  { id: "AUD-3041", date: "Yesterday, 17:00 PM", location: "Giftshop", scope: "Full Location Count", runner: "Team Alpha", expectedQty: 320, countedQty: 320, varianceRm: 0.00, status: "Closed", hasVariance: false },
-];
-
-const RECON_ITEMS: ReconItem[] = [
-  { id: "PRD-1049", name: "Raw Beef Tenderloin", expected: 15, counted: 14, costPerUnit: 42.00 },
-  { id: "PRD-1050", name: "Fresh Atlantic Salmon", expected: 10, counted: 9, costPerUnit: 58.00 },
-  { id: "PRD-1011", name: "Fresh Lemon (Kg)", expected: 5, counted: 4, costPerUnit: 45.50 },
-];
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -60,7 +45,7 @@ function statusBadge(status: string) {
 // ── Page ────────────────────────────────────────────────────────────────────
 
 export default function InventoryAuditsPage() {
-  const [audits, setAudits] = useState<AuditCycle[]>(INITIAL_AUDITS);
+  const [audits, setAudits] = useState<AuditCycle[]>([]);
   const [locations, setLocations] = useState<StockLocation[]>([]);
   const [runners, setRunners] = useState<Runner[]>([]);
   const [search, setSearch] = useState("");
@@ -72,6 +57,7 @@ export default function InventoryAuditsPage() {
   // Modal state
   const [scheduleModal, setScheduleModal] = useState(false);
   const [reconModal, setReconModal] = useState<number | null>(null);
+  const [reconItems, setReconItems] = useState<ReconItem[]>([]);
 
   // Schedule form
   const [schedLoc, setSchedLoc] = useState("");
@@ -79,15 +65,21 @@ export default function InventoryAuditsPage() {
   const [schedDate, setSchedDate] = useState("");
   const [schedTime, setSchedTime] = useState("");
   const [schedRunner, setSchedRunner] = useState("Auto-Assign");
+  const [isPending, startTransition] = useTransition();
 
   const showToast = useCallback((msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3500); }, []);
 
   useEffect(() => {
     (async () => {
-      const [locs, runnerList] = await Promise.all([fetchStockLocationsAction(), fetchRunnersAction()]);
+      const [locs, runnerList, fetchedAudits] = await Promise.all([
+        fetchStockLocationsAction(), 
+        fetchRunnersAction(),
+        fetchAuditsAction()
+      ]);
       const typedLocs = locs as StockLocation[];
       setLocations(typedLocs);
       setRunners(runnerList as Runner[]);
+      setAudits(fetchedAudits as AuditCycle[]);
       if (typedLocs.length > 0 && !schedLoc) setSchedLoc(typedLocs[0].name);
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -129,6 +121,13 @@ export default function InventoryAuditsPage() {
 
   // ── Reconciliation ────────────────────────────────────────────────────────
 
+  async function openReconModal(globalIdx: number) {
+    const auditId = audits[globalIdx].id;
+    setReconModal(globalIdx);
+    const items = await fetchAuditItemsAction(auditId);
+    setReconItems(items as ReconItem[]);
+  }
+
   function requestRecount() {
     if (reconModal === null) return;
     setAudits((prev) => prev.map((a, i) => i === reconModal ? { ...a, status: "Active" as const, date: "Recount Ordered" } : a));
@@ -140,13 +139,21 @@ export default function InventoryAuditsPage() {
   function approveWriteOff() {
     if (reconModal === null) return;
     const audit = audits[reconModal];
-    setAudits((prev) => prev.map((a, i) => i === reconModal ? { ...a, status: "Closed" as const } : a));
-    setReconModal(null);
-    showToast(`Variances written off. Item ledgers adjusted by ${audit.varianceRm?.toFixed(2)} RM.`);
+    
+    startTransition(async () => {
+      const res = await reconcileAuditAction(audit.id);
+      if (res?.error) {
+        showToast(`Error: ${res.error}`);
+      } else {
+        setAudits((prev) => prev.map((a, i) => i === reconModal ? { ...a, status: "Closed" as const } : a));
+        setReconModal(null);
+        showToast(`Variances written off. Item ledgers adjusted by ${audit.varianceRm?.toFixed(2)} RM.`);
+      }
+    });
   }
 
   const reconAudit = reconModal !== null ? audits[reconModal] : null;
-  const reconTotalImpact = RECON_ITEMS.reduce((sum, item) => sum + (item.counted - item.expected) * item.costPerUnit, 0);
+  const reconTotalImpact = reconItems.reduce((sum: number, item: ReconItem) => sum + (item.counted - item.expected) * item.costPerUnit, 0);
 
   return (
     <div className="space-y-8 pb-10">
@@ -260,7 +267,7 @@ export default function InventoryAuditsPage() {
                     <td className="px-5 py-4">{statusBadge(a.status)}</td>
                     <td className="px-5 py-4 text-right">
                       {a.status === "Needs Reconciliation" ? (
-                        <button onClick={() => setReconModal(globalIdx)}
+                        <button onClick={() => openReconModal(globalIdx)}
                           className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest rounded bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 hover:bg-yellow-500 hover:text-[#020408] transition-all shadow-[0_0_10px_rgba(234,179,8,0.2)]">
                           Reconcile
                         </button>
@@ -380,7 +387,7 @@ export default function InventoryAuditsPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-white/5 font-mono text-xs">
-                    {RECON_ITEMS.map((item) => {
+                    {reconItems.map((item: ReconItem) => {
                       const variance = item.counted - item.expected;
                       const impact = variance * item.costPerUnit;
                       return (
@@ -415,10 +422,10 @@ export default function InventoryAuditsPage() {
                 <RefreshCw className="w-4 h-4" /> Order Recount
               </button>
               <div className="flex gap-3">
-                <button onClick={() => setReconModal(null)} className="px-4 py-2 text-sm font-medium rounded text-gray-400 hover:text-white hover:bg-white/5 transition-colors">Cancel</button>
-                <button onClick={approveWriteOff}
-                  className="px-6 py-2 text-sm font-bold rounded bg-red-500/20 text-red-400 border border-red-500/50 hover:bg-red-500 hover:text-white transition-all shadow-[0_0_10px_rgba(239,68,68,0.2)]">
-                  Approve Write-Off & Close
+                <button onClick={() => setReconModal(null)} disabled={isPending} className="px-4 py-2 text-sm font-medium rounded text-gray-400 hover:text-white hover:bg-white/5 transition-colors disabled:opacity-50">Cancel</button>
+                <button onClick={approveWriteOff} disabled={isPending}
+                  className="px-6 py-2 text-sm font-bold rounded bg-red-500/20 text-red-400 border border-red-500/50 hover:bg-red-500 hover:text-white transition-all shadow-[0_0_10px_rgba(239,68,68,0.2)] disabled:opacity-50">
+                  {isPending ? "Approving..." : "Approve Write-Off & Close"}
                 </button>
               </div>
             </div>
@@ -428,7 +435,7 @@ export default function InventoryAuditsPage() {
 
       {/* Toast */}
       {toast && (
-        <div className="fixed bottom-8 right-8 bg-green-500/20 border border-green-500/40 text-green-400 px-6 py-3 rounded-lg shadow-lg backdrop-blur-sm text-sm font-semibold flex items-center gap-2 z-50">
+        <div className="fixed bottom-24 right-8 bg-green-500/20 border border-green-500/40 text-green-400 px-6 py-3 rounded-lg shadow-lg backdrop-blur-sm text-sm font-semibold flex items-center gap-2 z-50">
           <CheckCircle2 className="w-5 h-5" /><span>{toast}</span>
         </div>
       )}

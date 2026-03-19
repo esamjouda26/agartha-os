@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useTransition } from "react";
 import {
   ArrowLeftRight, Search, Activity, Clock, Package, Zap, Truck, History, X, ArrowRight, ChevronLeft, ChevronRight, CheckCircle2, Eye,
 } from "lucide-react";
@@ -9,6 +9,7 @@ import {
   fetchProductsWithStockAction,
   fetchTransfersAction,
   createTransferAction,
+  completeTransferAction,
   fetchItemLedgerAction,
   fetchRunnersAction,
 } from "../actions";
@@ -19,20 +20,19 @@ import DomainAuditTable from "@/components/DomainAuditTable";
 interface StockLevel { id: string; location_id: string; current_qty: number; max_qty: number | null }
 interface ProductWithStock {
   id: string; name: string; sku: string | null; barcode: string | null;
-  category: string | null; unit: string; reorder_point: number;
+  product_category: string | null; unit_of_measure: string; reorder_point: number;
   product_stock_levels: StockLevel[];
 }
-interface StockLocation { id: string; name: string; is_sink: boolean }
+interface StockLocation { id: string; name: string; is_sink: boolean; can_hold_inventory: boolean; allowed_categories: string[] }
 interface Runner { id: string; employee_id: string; legal_name: string }
 
 interface Transfer {
   id: string; source_location_id: string; dest_location_id: string;
   assigned_runner_id: string | null; status: string; notes: string | null;
   created_at: string; updated_at: string | null; created_by: string | null;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  inventory_transfer_items: any[];
-  source: { name: string; is_sink: boolean } | null;
-  dest: { name: string; is_sink: boolean } | null;
+  inventory_transfer_items: { products?: { name: string }; quantity: number }[];
+  source: { name: string; can_hold_inventory: boolean } | null;
+  dest: { name: string; can_hold_inventory: boolean } | null;
 }
 
 interface LedgerEntry {
@@ -85,7 +85,7 @@ export default function TransfersPage() {
   const [tfDest, setTfDest] = useState("");
   const [tfRunner, setTfRunner] = useState("auto");
   const [tfItems, setTfItems] = useState<{ product_id: string; name: string; qty: number }[]>([]);
-  const [saving, setSaving] = useState(false);
+  const [isPending, startTransition] = useTransition();
 
   const showToast = useCallback((msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3500); }, []);
 
@@ -96,14 +96,14 @@ export default function TransfersPage() {
 
   const refresh = useCallback(async () => {
     setLoading(true);
-    const [prods, locs, trans, runnerList] = await Promise.all([
+    const [prodsRes, locs, trans, runnerList] = await Promise.all([
       fetchProductsWithStockAction(search || undefined),
       fetchStockLocationsAction(),
       fetchTransfersAction(),
       fetchRunnersAction(),
     ]);
     const typedLocs = locs as StockLocation[];
-    setProducts(prods as ProductWithStock[]);
+    setProducts(prodsRes.products as ProductWithStock[]);
     setLocations(typedLocs);
     setTransfers(trans as Transfer[]);
     setRunners(runnerList as Runner[]);
@@ -167,26 +167,26 @@ export default function TransfersPage() {
     const invalidQty = tfItems.some((i) => !i.qty || i.qty < 1);
     if (invalidQty) { showToast("Enter valid quantity for all items"); return; }
 
-    setSaving(true);
-    const runnerId = tfRunner === "auto" || tfRunner === "direct" ? null : tfRunner;
-    const res = await createTransferAction({
-      source_location_id: tfSource,
-      dest_location_id: tfDest,
-      assigned_runner_id: runnerId,
-      notes: null,
-      items: tfItems.map((i) => ({ product_id: i.product_id, quantity: i.qty })),
-    });
-    setSaving(false);
+    startTransition(async () => {
+      const runnerId = tfRunner === "auto" || tfRunner === "direct" ? null : tfRunner;
+      const res = await createTransferAction({
+        source_location_id: tfSource,
+        dest_location_id: tfDest,
+        assigned_runner_id: runnerId,
+        notes: null,
+        items: tfItems.map((i) => ({ product_id: i.product_id, quantity: i.qty })),
+      });
 
-    if (res.success) {
-      const isDirect = tfRunner === "direct";
-      showToast(isDirect ? "Items issued directly. Global stock updated." : "Transfer ticket dispatched to Runners.");
-      setTransferModal(false);
-      setSelected(new Set());
-      refresh();
-    } else {
-      showToast(`Error: ${res.error}`);
-    }
+      if (res?.error) {
+        showToast(`Error: ${res.error}`);
+      } else {
+        const isDirect = tfRunner === "direct";
+        showToast(isDirect ? "Items issued directly. Global stock updated." : "Transfer ticket dispatched to Runners.");
+        setTransferModal(false);
+        setSelected(new Set());
+        refresh();
+      }
+    });
   }
 
   // ── Ledger Modal ──────────────────────────────────────────────────────────
@@ -416,8 +416,7 @@ export default function TransfersPage() {
                     {filteredHistory.map((t) => {
                       const statusCls = STATUS_BADGE[t.status] ?? STATUS_BADGE.draft;
                       const itemsDesc = t.inventory_transfer_items?.map(
-                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                        (item: any) => `${item.products?.name ?? "Item"} (×${item.quantity})`
+                        (item: { products?: { name: string }; quantity: number }) => `${item.products?.name ?? "Item"} (×${item.quantity})`
                       ).join(", ") || "—";
                       return (
                         <tr key={t.id} className="hover:bg-white/[0.02] transition-colors">
@@ -426,7 +425,7 @@ export default function TransfersPage() {
                           <td className="px-5 py-4">
                             <span className="text-gray-300">{t.source?.name ?? "—"}</span>
                             <ArrowRight className="w-3 h-3 inline mx-2 text-gray-500" />
-                            <span className={t.dest?.is_sink ? "text-blue-400" : "text-gray-300"}>{t.dest?.name ?? "—"}</span>
+                            <span className={t.dest && !t.dest.can_hold_inventory ? "text-blue-400" : "text-gray-300"}>{t.dest?.name ?? "—"}</span>
                           </td>
                           <td className="px-5 py-4 text-gray-300 max-w-xs truncate">{itemsDesc}</td>
                           <td className="px-5 py-4 text-gray-400">{t.assigned_runner_id ? t.assigned_runner_id.slice(0, 8) + "…" : "Direct Issue"}</td>
@@ -435,7 +434,18 @@ export default function TransfersPage() {
                               {t.status.replace(/_/g, " ")}
                             </span>
                           </td>
-                          <td className="px-5 py-4 text-right">
+                          <td className="px-5 py-4 text-right flex justify-end gap-2">
+                            {t.status !== "completed" && t.status !== "cancelled" && (
+                              <button disabled={isPending} onClick={() => {
+                                startTransition(async () => {
+                                  const res = await completeTransferAction(t.id);
+                                  if (res?.error) showToast(res.error);
+                                  else { showToast("Transfer Completed & Stock Deducted!"); refresh(); }
+                                });
+                              }} className="p-1.5 text-green-500 hover:text-green-400 hover:bg-green-500/20 rounded disabled:opacity-50" title="Receive / Complete Transfer">
+                                <CheckCircle2 className="w-4 h-4" />
+                              </button>
+                            )}
                             <button className="p-1.5 text-gray-500 hover:text-white hover:bg-white/10 rounded" title="View Details">
                               <Eye className="w-4 h-4" />
                             </button>
@@ -484,7 +494,15 @@ export default function TransfersPage() {
                 <div className="space-y-2 bg-[#020408]/50 p-4 rounded border border-white/5">
                   <label className="text-xs text-gray-400 uppercase tracking-widest font-semibold flex items-center gap-1"><ArrowLeftRight className="w-3 h-3 text-[#d4af37]" /> Destination</label>
                   <select value={tfDest} onChange={(e) => setTfDest(e.target.value)} className="w-full bg-[#020408] border border-white/10 text-sm text-white rounded-md px-4 py-2 focus:outline-none focus:border-[rgba(212,175,55,0.5)]">
-                    <optgroup label="Trackable Locations">{trackableLocations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}</optgroup>
+                    <optgroup label="Trackable Locations">
+                      {trackableLocations.map((l) => {
+                        const isAllowed = tfItems.every(item => {
+                          const p = products.find(prod => prod.id === item.product_id);
+                          return p && p.product_category && l.allowed_categories.includes(p.product_category);
+                        });
+                        return <option key={l.id} value={l.id} disabled={!isAllowed}>{l.name} {!isAllowed && "(Invalid Category)"}</option>;
+                      })}
+                    </optgroup>
                     {sinkLocations.length > 0 && <optgroup label="Sink Locations (Issue-to-Consume)">{sinkLocations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}</optgroup>}
                   </select>
                 </div>
@@ -524,10 +542,10 @@ export default function TransfersPage() {
             </div>
 
             <div className="p-5 border-t border-white/10 bg-[#020408]/80 rounded-b-lg flex justify-end gap-3">
-              <button onClick={() => setTransferModal(false)} className="px-4 py-2 text-sm font-medium rounded text-gray-400 hover:text-white hover:bg-white/5 transition-colors">Cancel</button>
-              <button onClick={handleCreateTransfer} disabled={saving}
+              <button onClick={() => setTransferModal(false)} disabled={isPending} className="px-4 py-2 text-sm font-medium rounded text-gray-400 hover:text-white hover:bg-white/5 transition-colors disabled:opacity-50">Cancel</button>
+              <button onClick={handleCreateTransfer} disabled={isPending}
                 className="px-6 py-2 text-sm font-bold rounded bg-[rgba(212,175,55,0.2)] text-[#d4af37] border border-[rgba(212,175,55,0.5)] hover:bg-[#d4af37] hover:text-[#020408] transition-all shadow-[0_0_10px_rgba(212,175,55,0.2)] disabled:opacity-40">
-                {saving ? "Dispatching…" : "Dispatch Ticket"}
+                {isPending ? "Dispatching…" : "Dispatch Ticket"}
               </button>
             </div>
           </div>
@@ -590,7 +608,7 @@ export default function TransfersPage() {
 
       {/* Toast */}
       {toast && (
-        <div className="fixed bottom-8 right-8 bg-green-500/20 border border-green-500/40 text-green-400 px-6 py-3 rounded-lg shadow-lg backdrop-blur-sm text-sm font-semibold flex items-center gap-2 z-50">
+        <div className="fixed bottom-24 right-8 bg-green-500/20 border border-green-500/40 text-green-400 px-6 py-3 rounded-lg shadow-lg backdrop-blur-sm text-sm font-semibold flex items-center gap-2 z-50">
           <CheckCircle2 className="w-5 h-5" />
           <span>{toast}</span>
         </div>

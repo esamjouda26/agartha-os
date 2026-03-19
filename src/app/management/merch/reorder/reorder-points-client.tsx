@@ -1,15 +1,17 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { AlertTriangle, Package, AlertCircle, CheckCircle, Truck, FilePlus } from "lucide-react";
+import { useState, useMemo, useTransition } from "react";
+import { AlertTriangle, Package, AlertCircle, CheckCircle, Truck, FilePlus, Loader2 } from "lucide-react";
 import type { ReorderRow } from "./page";
+import { generateDraftPOsAction, updateReorderPointAction, updateProductSupplierAction } from "../actions";
 
 /* ── Helpers ────────────────────────────────────────────────────────── */
 const typeBadge = (type: string) => {
   const map: Record<string, string> = {
-    merchandise:     "bg-blue-500/10 text-blue-400 border-blue-500/20",
-    food:            "bg-amber-500/10 text-amber-400 border-amber-500/20",
-    beverage:        "bg-purple-500/10 text-purple-400 border-purple-500/20",
+    retail_merch:     "bg-blue-500/10 text-blue-400 border-blue-500/20",
+    prepackaged_fnb:  "bg-amber-500/10 text-amber-400 border-amber-500/20",
+    raw_ingredient:   "bg-purple-500/10 text-purple-400 border-purple-500/20",
+    consumable:       "bg-gray-500/10 text-gray-400 border-gray-500/20",
   };
   const cls = map[type] ?? "bg-gray-500/10 text-gray-400 border-gray-500/20";
   return <span className={`px-2 py-0.5 rounded text-[10px] border font-semibold font-sans ${cls}`}>{type}</span>;
@@ -18,6 +20,7 @@ const typeBadge = (type: string) => {
 interface EnrichedRow {
   id: string;
   name: string;
+  supplierId: string | null;
   supplierName: string;
   category: string;
   onHand: number;
@@ -31,22 +34,32 @@ interface EnrichedRow {
 }
 
 /* ── Component ──────────────────────────────────────────────────────── */
-export default function ReorderPointsClient({ products }: { products: ReorderRow[] }) {
+export default function ReorderPointsClient({ products, suppliers }: { products: ReorderRow[], suppliers: { id: string; name: string }[] }) {
   const initial: EnrichedRow[] = products.map((p) => {
+    const activeStatuses = ["pending", "sent", "partially_received"];
+    const onOrder = (p.purchase_order_items ?? []).reduce((sum, item) => {
+      const status = item.purchase_orders?.status;
+      if (status && activeStatuses.includes(status)) {
+        return sum + Math.max(0, item.expected_qty - (item.received_qty || 0));
+      }
+      return sum;
+    }, 0);
+
     const onHand = p.product_stock_levels?.reduce((s, sl) => s + (sl.current_qty ?? 0), 0) ?? 0;
+    const effective = onHand + onOrder;
     const maxQty = p.product_stock_levels?.[0]?.max_qty ?? p.reorder_point * 3;
-    const reorderAmt = Math.max(0, maxQty - onHand);
-    const effective = onHand; // no on-order tracking in current schema
+    const reorderAmt = Math.max(0, maxQty - effective);
     const isLow = effective < p.reorder_point;
     // Synthetic sell-through based on stock ratio
     const sellThrough = maxQty > 0 ? Math.round(((maxQty - onHand) / maxQty) * 100) : 0;
     return {
       id: p.id,
       name: p.name,
+      supplierId: p.suppliers?.id ?? null,
       supplierName: p.suppliers?.name ?? "—",
-      category: p.category,
+      category: p.product_category,
       onHand,
-      onOrder: 0,
+      onOrder,
       effective,
       reorderPoint: p.reorder_point,
       reorderAmt,
@@ -79,13 +92,42 @@ export default function ReorderPointsClient({ products }: { products: ReorderRow
     }));
   }
 
+  const [isPending, startTransition] = useTransition();
+
   function createDraftPOs() {
     const selected = rows.filter((r) => r.selected);
     if (selected.length === 0) return;
-    // Group by supplier
-    const bySupplier = new Set(selected.map((r) => r.supplierName));
-    setRows((prev) => prev.map((r) => r.selected ? { ...r, onOrder: r.onOrder + r.reorderAmt, effective: r.onHand + r.onOrder + r.reorderAmt, isLow: (r.onHand + r.onOrder + r.reorderAmt) < r.reorderPoint, selected: false } : r));
-    showToast(`${bySupplier.size} Draft PO(s) created with ${selected.length} line item(s). Check Supplier POs tab.`);
+
+    // Group items by supplier_id
+    const grouping: Record<string, { productId: string, name: string, qty: number }[]> = {};
+    const unmapped: string[] = [];
+
+    selected.forEach(r => {
+      if (!r.supplierId) {
+        unmapped.push(r.name);
+        return;
+      }
+      if (!grouping[r.supplierId]) grouping[r.supplierId] = [];
+      grouping[r.supplierId].push({ productId: r.id, name: r.name, qty: r.reorderAmt });
+    });
+
+    if (unmapped.length > 0) {
+      alert(`Cannot create PO for items missing a Supplier connection:\n${unmapped.join("\\n")}`);
+      if (Object.keys(grouping).length === 0) return;
+    }
+
+    const payload = Object.entries(grouping).map(([supplierId, items]) => ({ supplierId, items }));
+
+    startTransition(async () => {
+      const res = await generateDraftPOsAction(payload);
+      if (res.error) {
+        showToast("Error: " + res.error);
+        return;
+      }
+      showToast(`${payload.length} Draft PO(s) created! Opening POS...`);
+      // Toggle selection off visually
+      setRows(prev => prev.map(r => r.selected ? { ...r, selected: false } : r));
+    });
   }
 
   function showToast(msg: string) {
@@ -115,10 +157,11 @@ export default function ReorderPointsClient({ products }: { products: ReorderRow
           </label>
           <button
             onClick={createDraftPOs}
-            disabled={!anySelected}
+            disabled={!anySelected || isPending}
             className="bg-gradient-to-r from-[#806b45] to-[#d4af37] hover:from-[#d4af37] hover:to-yellow-300 text-[#020408] font-bold px-5 py-2.5 rounded shadow-[0_0_15px_rgba(212,175,55,0.3)] hover:shadow-[0_0_25px_rgba(212,175,55,0.5)] transition-all flex items-center text-sm uppercase tracking-widest disabled:opacity-30 disabled:cursor-not-allowed disabled:shadow-none"
           >
-            <FilePlus className="w-4 h-4 mr-2" /> Create Draft POs
+            {isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FilePlus className="w-4 h-4 mr-2" />}
+            {isPending ? "Generating..." : "Create Draft POs"}
           </button>
         </div>
       </div>
@@ -172,14 +215,13 @@ export default function ReorderPointsClient({ products }: { products: ReorderRow
                   <th className="px-4 py-4 font-semibold">On Hand</th>
                   <th className="px-4 py-4 font-semibold">On Order</th>
                   <th className="px-4 py-4 font-semibold text-[#d4af37]">Effective Stock</th>
-                  <th className="px-4 py-4 font-semibold">Alert</th>
                   <th className="px-4 py-4 font-semibold">Reorder Point</th>
                   <th className="px-4 py-4 font-semibold">Reorder Amt</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5 font-mono text-xs">
                 {filtered.length === 0 ? (
-                  <tr><td colSpan={12} className="px-4 py-10 text-center text-gray-500 text-xs">No products found.</td></tr>
+                  <tr><td colSpan={11} className="px-4 py-10 text-center text-gray-500 text-xs">No products found.</td></tr>
                 ) : filtered.map((r) => {
                   const stColor = r.sellThrough >= 80 ? "bg-green-500" : r.sellThrough >= 50 ? "bg-[#d4af37]" : "bg-red-500";
                   const stTextColor = r.sellThrough >= 80 ? "text-green-400" : r.sellThrough >= 50 ? "text-[#d4af37]" : "text-red-400";
@@ -192,7 +234,25 @@ export default function ReorderPointsClient({ products }: { products: ReorderRow
                         <span className="bg-[#020408] px-2 py-1 rounded border border-white/10 text-gray-400">{r.id.slice(0, 8)}</span>
                       </td>
                       <td className="px-4 py-4"><p className="text-gray-200 font-bold font-sans tracking-wide">{r.name}</p></td>
-                      <td className="px-4 py-4 text-gray-400 font-sans">{r.supplierName}</td>
+                      <td className="px-4 py-4 text-gray-400 font-sans">
+                        <select
+                          className="bg-transparent border border-transparent hover:border-white/10 focus:border-[#d4af37]/50 focus:bg-[#020408] rounded pl-1 pr-6 py-1 cursor-pointer w-full text-xs"
+                          value={r.supplierId || ""}
+                          onChange={async (e) => {
+                            const newId = e.target.value || null;
+                            const res = await updateProductSupplierAction(r.id, newId);
+                            if (res?.error) {
+                              showToast("Error updating supplier: " + res.error);
+                            } else {
+                              showToast("Supplier updated.");
+                              setRows(prev => prev.map(pr => pr.id === r.id ? { ...pr, supplierId: newId, supplierName: suppliers.find(s => s.id === newId)?.name ?? "—" } : pr));
+                            }
+                          }}
+                        >
+                          <option value="">—</option>
+                          {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                        </select>
+                      </td>
                       <td className="px-4 py-4">{typeBadge(r.category)}</td>
                       <td className="px-4 py-4">
                         <div className="flex items-center space-x-2">
@@ -207,11 +267,32 @@ export default function ReorderPointsClient({ products }: { products: ReorderRow
                       <td className="px-4 py-4">
                         <span className={`font-orbitron text-sm font-bold ${r.isLow ? "text-red-400" : "text-green-400"}`}>{r.effective}</span>
                       </td>
-                      <td className="px-4 py-4 text-center text-lg">
-                        <span className={`inline-block w-3 h-3 rounded-full ${r.isLow ? "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)]" : "bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]"}`} />
+                      <td className="px-4 py-4 text-gray-300">
+                        <input
+                          type="number"
+                          className="w-16 bg-transparent border border-transparent hover:border-white/10 hover:bg-white/5 focus:border-[#d4af37]/50 focus:bg-[#020408] focus:outline-none rounded px-2 py-1 transition-all text-center"
+                          value={r.reorderPoint}
+                          onChange={(e) => setRows(prev => prev.map(pr => pr.id === r.id ? { ...pr, reorderPoint: Number(e.target.value) } : pr))}
+                          onBlur={async (e) => {
+                            if (Number(e.target.value) !== initial.find(pr => pr.id === r.id)?.reorderPoint) {
+                              const res = await updateReorderPointAction(r.id, Number(e.target.value));
+                              if (res?.error) {
+                                showToast("Error: " + res.error);
+                              } else {
+                                showToast("Reorder point updated.");
+                              }
+                            }
+                          }}
+                        />
                       </td>
-                      <td className="px-4 py-4 text-gray-300">{r.reorderPoint}</td>
-                      <td className="px-4 py-4 text-gray-300">{r.reorderAmt}</td>
+                      <td className="px-4 py-4 text-gray-300">
+                        <input
+                          type="number"
+                          className="w-16 bg-transparent border border-transparent hover:border-white/10 hover:bg-white/5 focus:border-[#d4af37]/50 focus:bg-[#020408] focus:outline-none rounded px-2 py-1 transition-all text-center"
+                          value={r.reorderAmt}
+                          onChange={(e) => setRows(prev => prev.map(pr => pr.id === r.id ? { ...pr, reorderAmt: Number(e.target.value) } : pr))}
+                        />
+                      </td>
                     </tr>
                   );
                 })}
@@ -223,7 +304,7 @@ export default function ReorderPointsClient({ products }: { products: ReorderRow
 
       {/* ═══ Toast ═══ */}
       {toast && (
-        <div className="fixed bottom-8 right-8 bg-green-500/20 border border-green-500/40 text-green-400 px-6 py-3 rounded-lg shadow-lg backdrop-blur-sm text-sm font-semibold flex items-center space-x-2 z-50 animate-in slide-in-from-bottom-4">
+        <div className="fixed bottom-24 right-8 bg-green-500/20 border border-green-500/40 text-green-400 px-6 py-3 rounded-lg shadow-lg backdrop-blur-sm text-sm font-semibold flex items-center space-x-2 z-50 animate-in slide-in-from-bottom-4">
           <CheckCircle className="w-5 h-5" />
           <span>{toast}</span>
         </div>

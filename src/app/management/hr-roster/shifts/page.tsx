@@ -428,7 +428,7 @@ export default function ShiftSchedulingPage() {
 
       {/* Toast */}
       {toast && (
-        <div className="fixed bottom-8 right-8 bg-[#020408] border-l-4 border-l-[#d4af37] border border-white/10 text-white px-6 py-4 rounded-lg shadow-xl backdrop-blur-md text-sm font-semibold flex items-center gap-3 z-[60]">
+        <div className="fixed bottom-24 right-8 bg-[#020408] border-l-4 border-l-[#d4af37] border border-white/10 text-white px-6 py-4 rounded-lg shadow-xl backdrop-blur-md text-sm font-semibold flex items-center gap-3 z-[60]">
           <CheckCircle2 className="w-5 h-5 text-[#d4af37]" /><span>{toast}</span>
         </div>
       )}

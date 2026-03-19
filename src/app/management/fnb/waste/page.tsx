@@ -18,11 +18,58 @@ export interface WasteRow {
 /* ── Page (Server Component) ──────────────────────────────────────── */
 export default async function FnBWastePrepPage() {
   const supabase = await createClient();
-  const { data } = await supabase
-    .from("waste_logs")
-    .select("id, item_name, category, location, supplier_name, reason, quantity, unit, cost_impact, logged_at")
-    .order("logged_at", { ascending: false })
-    .limit(100) as { data: WasteRow[] | null };
+  const { data, error } = await supabase
+    .from("fnb_waste_log")
+    .select(`
+      id, 
+      quantity, 
+      reason, 
+      notes,
+      created_at,
+      fnb_menu_items (
+        name,
+        category,
+        cost_price
+      )
+    `)
+    .order("created_at", { ascending: false })
+    .limit(100);
 
-  return <WasteClient wasteLogs={data ?? []} />;
+  if (error) {
+    console.error("Waste Log Error:", error);
+  }
+
+  const formattedLogs: WasteRow[] = (data || []).map((row: any) => {
+    const item = row.fnb_menu_items || {};
+    const cost = item.cost_price || 0;
+    
+    return {
+      id: row.id,
+      item_name: item.name || "Unknown Item",
+      category: item.category || "Prepared Item",
+      location: null, // Sink locations aren't directly tracked per item in waste context purely here
+      supplier_name: null, // Assembled 
+      reason: row.reason,
+      quantity: row.quantity,
+      unit: "units", // Default assumptions based on schema
+      cost_impact: cost * row.quantity,
+      logged_at: row.created_at,
+    };
+  });
+  const { data: menuData } = await supabase
+    .from("fnb_menu_items")
+    .select("id, name, category, unit_price")
+    .eq("status", "available");
+
+  const menuItems: any[] = (menuData || []).map((m: any) => ({
+    id: m.id,
+    name: m.name,
+    category: m.category,
+    price: m.unit_price,
+  }));
+
+  const { data: locData } = await supabase.from("locations").select("id, name");
+  const locations = locData || [];
+
+  return <WasteClient wasteLogs={formattedLogs} menuItems={menuItems} locations={locations} />;
 }

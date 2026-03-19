@@ -265,7 +265,7 @@ export default function CrewDeploymentPage() {
 
       {/* Toast */}
       {toast && (
-        <div className="fixed bottom-8 right-8 bg-green-500/20 border border-green-500/40 text-green-400 px-6 py-3 rounded-lg shadow-lg backdrop-blur-sm text-sm font-semibold flex items-center gap-2 z-50">
+        <div className="fixed bottom-24 right-8 bg-green-500/20 border border-green-500/40 text-green-400 px-6 py-3 rounded-lg shadow-lg backdrop-blur-sm text-sm font-semibold flex items-center gap-2 z-50">
           <CheckCircle2 className="w-5 h-5" /><span>{toast}</span>
         </div>
       )}
