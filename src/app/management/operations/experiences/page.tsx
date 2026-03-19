@@ -178,9 +178,8 @@ export default function ExperienceConfigPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="flex flex-col md:flex-row md:items-center justify-end gap-4">
         <div>
-          <h1 className="text-xl font-bold text-gradient">Master Experience Configuration</h1>
           <p className="text-xs text-muted-foreground mt-1 uppercase tracking-widest">
             Define tier templates, experiences, capacity limits & arrival windows
           </p>

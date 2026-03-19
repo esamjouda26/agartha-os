@@ -1,5 +1,6 @@
 import { TrendingUp, DollarSign, CreditCard, RefreshCw, Target, Activity, Radio, Link2, Users, ArrowUpDown } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
+import { toggleCampaignStatusAction } from "../actions";
 
 /* ── Types ─────────────────────────────────────────────────────────── */
 interface CampaignRow {
@@ -52,13 +53,8 @@ export default async function MarketingCampaignPage() {
   return (
     <div className="space-y-8 pb-10">
       {/* ═══ Header & Date Filters ═══ */}
-      <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
-        <div>
-          <h3 className="font-cinzel text-xl text-[#d4af37] flex items-center tracking-wider">
-            <TrendingUp className="w-6 h-6 mr-3" /> Campaign Performance &amp; Attribution
-          </h3>
-          <p className="text-xs text-gray-400 mt-1 uppercase tracking-widest">Global Ad Spend &amp; ROI Tracking</p>
-        </div>
+      <div className="flex flex-col md:flex-row md:items-start justify-end gap-4">
+        
         {/* Date filter pill bar */}
         <div className="glass-panel rounded-lg p-2 flex items-center justify-between w-fit md:ml-auto border-[#d4af37]/20 shadow-[0_4px_15px_rgba(0,0,0,0.3)]">
           <div className="flex items-center space-x-1">
@@ -175,7 +171,12 @@ export default async function MarketingCampaignPage() {
                           {c.name}
                         </span>
                       </div>
-                      <span className="text-[10px] text-green-400 font-bold uppercase">Active</span>
+                      <form action={async () => {
+                        "use server";
+                        await toggleCampaignStatusAction(c.id, c.status);
+                      }}>
+                        <button type="submit" className="text-[10px] text-green-400 font-bold uppercase hover:bg-green-400/10 px-2 py-1 rounded transition-colors">{c.status}</button>
+                      </form>
                     </div>
                     <div className="grid grid-cols-4 gap-2 border-t border-white/5 pt-2">
                       <div className="col-span-2">

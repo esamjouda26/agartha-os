@@ -16,7 +16,7 @@ export default async function HomePage() {
         business_admin:           "/admin/executive",
         fnb_manager:              "/management/fnb/menu",
         merch_manager:            "/management/merch/catalog",
-        maintenance_manager:      "/management/operations/telemetry",
+        maintenance_manager:      "/management/maintenance/telemetry",
         inventory_manager:        "/management/inventory",
         marketing_manager:        "/management/marketing/campaigns",
         human_resources_manager:  "/management/hr-roster",

@@ -81,9 +81,11 @@ export default function TransfersPage() {
   const [ledgerLoading, setLedgerLoading] = useState(false);
 
   // Transfer form
+  const [tfType, setTfType] = useState<"transfer" | "consume">("transfer");
   const [tfSource, setTfSource] = useState("");
   const [tfDest, setTfDest] = useState("");
   const [tfRunner, setTfRunner] = useState("auto");
+  const [tfRemarks, setTfRemarks] = useState("");
   const [tfItems, setTfItems] = useState<{ product_id: string; name: string; qty: number }[]>([]);
   const [isPending, startTransition] = useTransition();
 
@@ -110,7 +112,7 @@ export default function TransfersPage() {
     if (!tfSource && typedLocs.length > 0) setTfSource(typedLocs[0].id);
     if (!tfDest && typedLocs.length > 1) setTfDest(typedLocs[1].id);
     setLoading(false);
-  }, [search, tfSource, tfDest]);
+  }, [search]);
 
   useEffect(() => { refresh(); }, [refresh]);
 
@@ -138,6 +140,12 @@ export default function TransfersPage() {
     return result;
   }
 
+  function isNA(p: ProductWithStock, loc: StockLocation): boolean {
+    if (!loc.can_hold_inventory) return true;
+    if (!p.product_category) return false;
+    return !loc.allowed_categories.includes(p.product_category);
+  }
+
   const totalReplenishments = products.filter((p) => getReplenishments(p).length > 0).length;
   const activeTickets = transfers.filter((t) => t.status === "pending" || t.status === "in_transit").length;
 
@@ -158,22 +166,34 @@ export default function TransfersPage() {
       ? products.filter((p) => p.id === preselectId)
       : products.filter((p) => selected.has(p.id));
     if (items.length === 0) return;
+    setTfType("transfer");
+    setTfRemarks("");
     setTfItems(items.map((p) => ({ product_id: p.id, name: p.name, qty: 1 })));
     setTransferModal(true);
   }
 
   async function handleCreateTransfer() {
-    if (!tfSource || !tfDest || tfItems.length === 0) return;
+    if (!tfSource || tfItems.length === 0) return;
+    if (tfType === "transfer" && !tfDest) return;
+    if (tfType === "consume" && !tfRemarks.trim()) { showToast("Enter a remark for consumption!"); return; }
+
     const invalidQty = tfItems.some((i) => !i.qty || i.qty < 1);
     if (invalidQty) { showToast("Enter valid quantity for all items"); return; }
 
     startTransition(async () => {
       const runnerId = tfRunner === "auto" || tfRunner === "direct" ? null : tfRunner;
+      
+      let finalDest = tfDest;
+      if (tfType === "consume") {
+        const fallBackSink = sinkLocations[0]?.id || locations[0]?.id;
+        finalDest = fallBackSink;
+      }
+
       const res = await createTransferAction({
         source_location_id: tfSource,
-        dest_location_id: tfDest,
+        dest_location_id: finalDest,
         assigned_runner_id: runnerId,
-        notes: null,
+        notes: tfRemarks.trim() || null,
         items: tfItems.map((i) => ({ product_id: i.product_id, quantity: i.qty })),
       });
 
@@ -201,6 +221,8 @@ export default function TransfersPage() {
 
   // ── Filtered history ──────────────────────────────────────────────────────
 
+  // ── Filtered history & forms ──────────────────────────────────────────────
+
   const filteredHistory = transfers.filter((t) => {
     if (historyStatus !== "all" && t.status !== historyStatus) return false;
     if (historySearch) {
@@ -210,7 +232,16 @@ export default function TransfersPage() {
     return true;
   });
 
-  const isSinkDest = sinkLocations.some((l) => l.id === tfDest);
+  const validLocations = trackableLocations.filter(l => {
+    if (!l.can_hold_inventory) return false;
+    if (tfItems.length > 0) {
+      return tfItems.every(item => {
+        const p = products.find(prod => prod.id === item.product_id);
+        return p && p.product_category && l.allowed_categories.includes(p.product_category);
+      });
+    }
+    return true;
+  });
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -218,13 +249,8 @@ export default function TransfersPage() {
     <div className="space-y-6 pb-10">
 
       {/* ── Header ──────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="font-cinzel text-lg text-[#d4af37] flex items-center tracking-wider">
-            <ArrowLeftRight className="w-5 h-5 mr-2" /> Transfers & Issuance
-          </h3>
-          <p className="text-xs text-gray-400 mt-1 uppercase tracking-widest">Live Logistics Hub & Operational Consumption</p>
-        </div>
+      <div className="flex items-center justify-end">
+        
         <div className="flex items-center gap-3">
           {tab === "live" && (
             <button
@@ -329,6 +355,9 @@ export default function TransfersPage() {
                             <p className="text-[10px] text-gray-500 font-mono mt-0.5">{p.sku || p.barcode || p.id.slice(0, 8)}</p>
                           </td>
                           {trackableLocations.map((loc) => {
+                            if (isNA(p, loc)) {
+                              return <td key={loc.id} className="px-4 py-4 text-center border-l border-white/5"><span className="text-gray-600 text-[10px] italic">N/A</span></td>;
+                            }
                             const qty = getStockForLocation(p, loc.id);
                             const max = getMaxForLocation(p, loc.id);
                             const isLow = qty !== null && max !== null && qty < max;
@@ -480,39 +509,42 @@ export default function TransfersPage() {
             </div>
 
             <div className="p-6 space-y-6">
+              
+              {/* Type Toggle */}
+              <div className="flex gap-4">
+                 <button onClick={() => setTfType("transfer")} className={`flex-1 py-2 text-xs font-bold uppercase tracking-widest rounded border transition-all ${tfType === "transfer" ? "bg-[#d4af37]/10 text-[#d4af37] border-[#d4af37]/50" : "bg-transparent text-gray-500 border-white/10 hover:text-white"}`}>Internal Transfer</button>
+                 <button onClick={() => setTfType("consume")} className={`flex-1 py-2 text-xs font-bold uppercase tracking-widest rounded border transition-all ${tfType === "consume" ? "bg-blue-500/10 text-blue-400 border-blue-500/50" : "bg-transparent text-gray-500 border-white/10 hover:text-white"}`}>Issue to Consume</button>
+              </div>
+
               {/* Source / Dest */}
-              <div className="grid grid-cols-2 gap-6 relative">
-                <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-[#020408] border border-white/10 flex items-center justify-center z-10">
-                  <ArrowRight className="w-4 h-4 text-gray-400" />
-                </div>
+              <div className={`grid ${tfType === "consume" ? "grid-cols-1" : "grid-cols-2"} gap-6 relative`}>
+                {tfType === "transfer" && (
+                  <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-[#020408] border border-white/10 flex items-center justify-center z-10">
+                    <ArrowRight className="w-4 h-4 text-gray-400" />
+                  </div>
+                )}
                 <div className="space-y-2 bg-[#020408]/50 p-4 rounded border border-white/5">
                   <label className="text-xs text-gray-400 uppercase tracking-widest font-semibold flex items-center gap-1"><Package className="w-3 h-3 text-blue-400" /> Source Location</label>
                   <select value={tfSource} onChange={(e) => setTfSource(e.target.value)} className="w-full bg-[#020408] border border-white/10 text-sm text-white rounded-md px-4 py-2 focus:outline-none focus:border-[rgba(212,175,55,0.5)]">
-                    {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+                    {validLocations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
                   </select>
                 </div>
-                <div className="space-y-2 bg-[#020408]/50 p-4 rounded border border-white/5">
-                  <label className="text-xs text-gray-400 uppercase tracking-widest font-semibold flex items-center gap-1"><ArrowLeftRight className="w-3 h-3 text-[#d4af37]" /> Destination</label>
-                  <select value={tfDest} onChange={(e) => setTfDest(e.target.value)} className="w-full bg-[#020408] border border-white/10 text-sm text-white rounded-md px-4 py-2 focus:outline-none focus:border-[rgba(212,175,55,0.5)]">
-                    <optgroup label="Trackable Locations">
-                      {trackableLocations.map((l) => {
-                        const isAllowed = tfItems.every(item => {
-                          const p = products.find(prod => prod.id === item.product_id);
-                          return p && p.product_category && l.allowed_categories.includes(p.product_category);
-                        });
-                        return <option key={l.id} value={l.id} disabled={!isAllowed}>{l.name} {!isAllowed && "(Invalid Category)"}</option>;
-                      })}
-                    </optgroup>
-                    {sinkLocations.length > 0 && <optgroup label="Sink Locations (Issue-to-Consume)">{sinkLocations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}</optgroup>}
-                  </select>
-                </div>
+                
+                {tfType === "transfer" && (
+                  <div className="space-y-2 bg-[#020408]/50 p-4 rounded border border-white/5">
+                    <label className="text-xs text-gray-400 uppercase tracking-widest font-semibold flex items-center gap-1"><ArrowLeftRight className="w-3 h-3 text-[#d4af37]" /> Destination</label>
+                    <select value={tfDest} onChange={(e) => setTfDest(e.target.value)} className="w-full bg-[#020408] border border-white/10 text-sm text-white rounded-md px-4 py-2 focus:outline-none focus:border-[rgba(212,175,55,0.5)]">
+                      {validLocations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+                    </select>
+                  </div>
+                )}
               </div>
 
               {/* Sink warning */}
-              {isSinkDest && (
+              {tfType === "consume" && (
                 <div className="bg-blue-500/10 border border-blue-500/20 p-3 rounded flex items-start gap-3">
                   <span className="text-blue-400 text-sm mt-0.5">ℹ</span>
-                  <p className="text-xs text-blue-300"><strong>Issue-to-Consume Selected:</strong> Items transferred to a Sink Location will be immediately deducted from the global ledger as &quot;consumed&quot;.</p>
+                  <p className="text-xs text-blue-300"><strong>Issue-to-Consume:</strong> Items transferred will be immediately deducted from the global ledger as &quot;consumed/wasted&quot; and not tracked.</p>
                 </div>
               )}
 
@@ -528,6 +560,15 @@ export default function TransfersPage() {
                     </div>
                   ))}
                 </div>
+              </div>
+
+              {/* Remark */}
+              <div className="space-y-2 border-t border-white/10 pt-4">
+                <label className="text-xs text-gray-400 uppercase tracking-widest font-semibold flex items-center justify-between">
+                  <span>Remark / Notes</span>
+                  {tfType === "consume" && <span className="text-[10px] text-blue-400">Required for Issue to Consume</span>}
+                </label>
+                <input type="text" value={tfRemarks} onChange={e => setTfRemarks(e.target.value)} placeholder="Enter reason (e.g. Broken item, Used in Cafe ops...)" className="w-full bg-[#020408] border border-white/10 text-sm text-white rounded-md px-4 py-2 focus:outline-none focus:border-[rgba(212,175,55,0.5)]" />
               </div>
 
               {/* Runner */}

@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { Tag, Activity, Archive, PowerOff, Pencil, Copy, Calendar, Repeat, X } from "lucide-react";
 import type { PromoCodeRow } from "./page";
+import { togglePromoStatusAction, clonePromoAction, createPromoAction } from "../actions";
 
 /* ── Helpers ────────────────────────────────────────────────────────── */
 const fmtNum = (n: number) => new Intl.NumberFormat("en-US").format(n);
@@ -22,21 +23,51 @@ export default function PromoCodesClient({ promoCodes }: { promoCodes: PromoCode
   const activePromos  = promoCodes.filter((p) => p.status === "active");
   const inactivePromos = promoCodes.filter((p) => p.status !== "active");
 
+  const [isPending, startTransition] = useTransition();
+
   function openModal(type: "onetime" | "recurring") {
     setModalType(type);
     setModalOpen(true);
   }
 
+  function handleToggleStatus(id: string, currentStatus: string) {
+    startTransition(async () => {
+      try {
+        await togglePromoStatusAction(id, currentStatus);
+      } catch (err: any) {
+        alert(err.message);
+      }
+    });
+  }
+
+  function handleClone(id: string) {
+    startTransition(async () => {
+      try {
+        await clonePromoAction(id);
+      } catch (err: any) {
+        alert(err.message);
+      }
+    });
+  }
+
+  function handleCreatePromo(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    startTransition(async () => {
+      try {
+        await createPromoAction(formData);
+        setModalOpen(false);
+      } catch (err: any) {
+        alert(err.message);
+      }
+    });
+  }
+
   return (
     <div className="space-y-8 pb-10">
       {/* ═══ Header & Controls ═══ */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h3 className="font-cinzel text-xl text-[#d4af37] flex items-center tracking-wider">
-            <Tag className="w-6 h-6 mr-3" /> Promo Codes Management
-          </h3>
-          <p className="text-xs text-gray-400 mt-1 uppercase tracking-widest">Promotion Ledger &amp; Controls</p>
-        </div>
+      <div className="flex flex-col md:flex-row md:items-center justify-end gap-4">
+        
 
         <div className="flex items-center space-x-4">
           {/* Date filter pill */}
@@ -153,8 +184,7 @@ export default function PromoCodesClient({ promoCodes }: { promoCodes: PromoCode
                         </div>
                       </td>
                       <td className="px-6 py-4 text-right flex justify-end space-x-2">
-                        {/* // TODO: Bind to Server Action — toggle promo status */}
-                        <button className="text-gray-400 hover:text-red-400 transition-colors p-1.5 hover:bg-red-400/10 rounded" title="Disable Promo">
+                        <button disabled={isPending} onClick={() => handleToggleStatus(p.id, p.status)} className="text-gray-400 hover:text-red-400 transition-colors p-1.5 hover:bg-red-400/10 rounded disabled:opacity-50" title="Disable Promo">
                           <PowerOff className="w-4 h-4" />
                         </button>
                         <button className="text-gray-400 hover:text-[#d4af37] transition-colors p-1.5 hover:bg-[#d4af37]/10 rounded" title="Edit Restrictions">
@@ -205,8 +235,7 @@ export default function PromoCodesClient({ promoCodes }: { promoCodes: PromoCode
                         <span className="text-gray-300 font-mono">{fmtNum(p.current_uses)}</span>
                       </td>
                       <td className="px-6 py-4 text-right">
-                        {/* // TODO: Bind to Server Action — clone promo */}
-                        <button className="text-gray-400 hover:text-white transition-colors p-1.5 hover:bg-white/10 rounded" title="Clone Promotion">
+                        <button disabled={isPending} onClick={() => handleClone(p.id)} className="text-gray-400 hover:text-white transition-colors p-1.5 hover:bg-white/10 rounded disabled:opacity-50" title="Clone Promotion">
                           <Copy className="w-4 h-4" />
                         </button>
                       </td>
@@ -239,12 +268,13 @@ export default function PromoCodesClient({ promoCodes }: { promoCodes: PromoCode
 
             {/* Modal Body */}
             <div className="p-6 space-y-6">
-              <form className="space-y-6" onSubmit={(e) => { e.preventDefault(); setModalOpen(false); /* TODO: Bind to Server Action */ }}>
+              <form className="space-y-6" onSubmit={handleCreatePromo}>
                 {/* Code Name */}
                 <div className="space-y-3">
                   <label className="block text-xs text-gray-400 uppercase tracking-widest font-semibold">Code Name</label>
                   <input
                     type="text"
+                    name="code"
                     className="w-full bg-[#020408] border border-white/10 rounded text-sm text-white px-3 py-2 focus:outline-none focus:border-[#d4af37]/50 font-mono tracking-wider uppercase transition-colors placeholder-gray-600"
                     placeholder="e.g. FLASH20"
                     required
@@ -255,7 +285,7 @@ export default function PromoCodesClient({ promoCodes }: { promoCodes: PromoCode
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-3">
                     <label className="block text-xs text-gray-400 uppercase tracking-widest font-semibold">Discount Type</label>
-                    <select className="w-full bg-[#020408] border border-white/10 text-sm text-white rounded px-3 py-2 cursor-pointer focus:outline-none focus:border-[#d4af37]/50 transition-colors">
+                    <select name="discount_type" className="w-full bg-[#020408] border border-white/10 text-sm text-white rounded px-3 py-2 cursor-pointer focus:outline-none focus:border-[#d4af37]/50 transition-colors">
                       <option value="percentage">Percentage (%)</option>
                       <option value="fixed">Fixed Value ($)</option>
                     </select>
@@ -264,7 +294,7 @@ export default function PromoCodesClient({ promoCodes }: { promoCodes: PromoCode
                     <label className="block text-xs text-gray-400 uppercase tracking-widest font-semibold">Amount</label>
                     <div className="relative flex items-center">
                       <span className="absolute left-3 text-[#d4af37] text-sm font-mono">%</span>
-                      <input type="number" className="w-full bg-[#020408] border border-white/10 rounded text-sm text-white pl-7 pr-3 py-2 focus:outline-none focus:border-[#d4af37]/50 font-mono transition-colors" min={1} required />
+                      <input type="number" name="amount" className="w-full bg-[#020408] border border-white/10 rounded text-sm text-white pl-7 pr-3 py-2 focus:outline-none focus:border-[#d4af37]/50 font-mono transition-colors" min={1} required />
                     </div>
                   </div>
                 </div>
@@ -272,7 +302,7 @@ export default function PromoCodesClient({ promoCodes }: { promoCodes: PromoCode
                 {/* Max Redemptions */}
                 <div className="space-y-3">
                   <label className="block text-xs text-gray-400 uppercase tracking-widest font-semibold">Maximum Redemptions</label>
-                  <input type="number" className="w-full bg-[#020408] border border-white/10 rounded text-sm text-white px-3 py-2 focus:outline-none focus:border-[#d4af37]/50 font-mono transition-colors" placeholder="e.g. 500" required />
+                  <input type="number" name="max_uses" className="w-full bg-[#020408] border border-white/10 rounded text-sm text-white px-3 py-2 focus:outline-none focus:border-[#d4af37]/50 font-mono transition-colors" placeholder="e.g. 500" required />
                 </div>
 
                 <div className="border-t border-white/10 my-2" />
@@ -374,7 +404,8 @@ export default function PromoCodesClient({ promoCodes }: { promoCodes: PromoCode
                   </button>
                   <button
                     type="submit"
-                    className="px-6 py-2.5 text-sm font-bold rounded bg-gradient-to-r from-[#806b45] to-[#d4af37] hover:from-[#d4af37] hover:to-yellow-300 text-[#020408] shadow-[0_0_15px_rgba(212,175,55,0.3)] hover:shadow-[0_0_20px_rgba(212,175,55,0.5)] transition-all flex items-center"
+                    disabled={isPending}
+                    className="px-6 py-2.5 text-sm font-bold rounded bg-gradient-to-r from-[#806b45] to-[#d4af37] hover:from-[#d4af37] hover:to-yellow-300 text-[#020408] shadow-[0_0_15px_rgba(212,175,55,0.3)] hover:shadow-[0_0_20px_rgba(212,175,55,0.5)] transition-all flex items-center disabled:opacity-50"
                   >
                     {/* // TODO: Bind to create_promo_code Server Action */}
                     Generate Promo

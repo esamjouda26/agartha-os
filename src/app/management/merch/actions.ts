@@ -74,6 +74,39 @@ export async function createSupplierAction(formData: FormData) {
   return { success: true };
 }
 
+export async function updateSupplierAction(supplierId: string, formData: FormData) {
+  const supabase = await createClient();
+
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "UNAUTHORIZED" };
+
+  const staffRole = (user.app_metadata?.staff_role as string) ?? null;
+  const allowedRoles = ["business_admin", "it_admin", "merch_manager", "inventory_manager"];
+  if (!staffRole || !allowedRoles.includes(staffRole)) {
+    return { error: "FORBIDDEN - You do not have permission to modify Suppliers." };
+  }
+
+  const name = formData.get("name") as string;
+  const contact_email = formData.get("contact_email") as string;
+  const contact_phone = formData.get("contact_phone") as string;
+  const address = formData.get("address") as string;
+  const category = formData.get("category") as string;
+  const is_active_raw = formData.get("is_active");
+  
+  const updates: any = { name, contact_email, contact_phone, address, category };
+  if (is_active_raw !== null) {
+    updates.is_active = is_active_raw === "true";
+  }
+
+  const { error } = await supabase.from("suppliers").update(updates).eq("id", supplierId);
+
+  if (error) return { error: error.message };
+
+  revalidatePath("/management/merch/suppliers");
+  revalidatePath("/management/fnb/supplier");
+  return { success: true };
+}
+
 export async function updatePOStatusAction(poId: string, newStatus: string) {
   const supabase = await createClient();
 

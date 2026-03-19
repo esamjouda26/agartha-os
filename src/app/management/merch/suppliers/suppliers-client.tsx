@@ -3,13 +3,14 @@
 import { useState, useMemo, useTransition } from "react";
 import { Truck, Building2, CheckCircle, Archive, Search, Plus, X, Edit2, Loader2 } from "lucide-react";
 import type { SupplierRow } from "./page";
-import { createSupplierAction } from "../actions";
+import { createSupplierAction, updateSupplierAction } from "../actions";
 
 /* ── Component ──────────────────────────────────────────────────────── */
 export default function SuppliersClient({ suppliers }: { suppliers: SupplierRow[] }) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [modalOpen, setModalOpen] = useState(false);
+  const [editingSupplier, setEditingSupplier] = useState<SupplierRow | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [toastType, setToastType] = useState<"success" | "error">("success");
   const [isPending, startTransition] = useTransition();
@@ -18,6 +19,11 @@ export default function SuppliersClient({ suppliers }: { suppliers: SupplierRow[
     setToast(msg);
     setToastType(type);
     setTimeout(() => setToast(null), 4000);
+  }
+
+  function handleOpenModal(s?: SupplierRow) {
+    setEditingSupplier(s || null);
+    setModalOpen(true);
   }
 
   const totalVendors = suppliers.length;
@@ -38,15 +44,10 @@ export default function SuppliersClient({ suppliers }: { suppliers: SupplierRow[
   return (
     <div className="space-y-8 pb-10">
       {/* ═══ Header ═══ */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="font-cinzel text-xl text-[#d4af37] flex items-center tracking-wider">
-            <Truck className="w-6 h-6 mr-3" /> Suppliers
-          </h3>
-          <p className="text-xs text-gray-400 mt-1 uppercase tracking-widest">Vendor Master Database — Feeds Catalog &amp; PO Modules</p>
-        </div>
+      <div className="flex items-center justify-end">
+        
         <button
-          onClick={() => setModalOpen(true)}
+          onClick={() => handleOpenModal()}
           className="bg-gradient-to-r from-[#806b45] to-[#d4af37] hover:from-[#d4af37] hover:to-yellow-300 text-[#020408] font-bold px-5 py-2.5 rounded shadow-[0_0_15px_rgba(212,175,55,0.3)] hover:shadow-[0_0_25px_rgba(212,175,55,0.5)] transition-all flex items-center text-sm uppercase tracking-widest"
         >
           <Plus className="w-4 h-4 mr-2" /> Add Supplier
@@ -145,8 +146,7 @@ export default function SuppliersClient({ suppliers }: { suppliers: SupplierRow[
                         </span>
                       </td>
                       <td className="px-5 py-4 text-right">
-                        {/* // TODO: Bind to edit modal / Server Action */}
-                        <button className="p-1.5 text-gray-500 hover:text-white hover:bg-white/10 rounded" title="Edit Supplier">
+                        <button onClick={() => handleOpenModal(s)} className="p-1.5 text-gray-500 hover:text-white hover:bg-white/10 rounded" title="Edit Supplier">
                           <Edit2 className="w-4 h-4" />
                         </button>
                       </td>
@@ -165,7 +165,8 @@ export default function SuppliersClient({ suppliers }: { suppliers: SupplierRow[
           <div className="glass-panel rounded-lg w-full max-w-2xl border-[#d4af37]/30 shadow-[0_10px_40px_rgba(212,175,55,0.15)] flex flex-col my-auto relative">
             <div className="p-5 border-b border-white/10 flex justify-between items-center bg-[#020408]/50 rounded-t-lg">
               <h3 className="font-cinzel text-lg text-[#d4af37] flex items-center tracking-wider">
-                <Plus className="w-5 h-5 mr-2" /> Add Supplier
+                {editingSupplier ? <Edit2 className="w-5 h-5 mr-2" /> : <Plus className="w-5 h-5 mr-2" />} 
+                {editingSupplier ? "Edit Supplier" : "Add Supplier"}
               </h3>
               <button onClick={() => setModalOpen(false)} className="text-gray-400 hover:text-white transition-colors">
                 <X className="w-5 h-5" />
@@ -174,11 +175,13 @@ export default function SuppliersClient({ suppliers }: { suppliers: SupplierRow[
             <div className="p-6 space-y-5 max-h-[65vh] overflow-y-auto">
               <form action={async (formData) => {
                 startTransition(async () => {
-                  const res = await createSupplierAction(formData);
+                  const res = editingSupplier 
+                      ? await updateSupplierAction(editingSupplier.id, formData)
+                      : await createSupplierAction(formData);
                   if (res?.error) {
                     showToast(`Error: ${res.error}`, "error");
                   } else {
-                    showToast("Supplier saved successfully.");
+                    showToast(`Supplier ${editingSupplier ? "updated" : "saved"} successfully.`);
                     setModalOpen(false);
                   }
                 });
@@ -186,11 +189,11 @@ export default function SuppliersClient({ suppliers }: { suppliers: SupplierRow[
                 <div className="grid grid-cols-2 gap-5">
                   <div className="space-y-2">
                     <label className="text-xs text-gray-400 uppercase tracking-widest font-semibold">Company Name <span className="text-red-400">*</span></label>
-                    <input type="text" name="name" placeholder="e.g. Mega Souvenirs Sdn Bhd" className="w-full bg-[#020408] border border-white/10 text-sm text-white rounded-md px-4 py-2 focus:outline-none focus:border-[#d4af37]/50 transition-all" required />
+                    <input type="text" name="name" defaultValue={editingSupplier?.name || ""} placeholder="e.g. Mega Souvenirs Sdn Bhd" className="w-full bg-[#020408] border border-white/10 text-sm text-white rounded-md px-4 py-2 focus:outline-none focus:border-[#d4af37]/50 transition-all" required />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-xs text-gray-400 uppercase tracking-widest font-semibold">Supplier Category <span className="text-red-400">*</span></label>
-                    <select name="category" className="w-full bg-[#020408] border border-white/10 text-sm text-gray-300 rounded-md px-4 py-2 focus:outline-none focus:border-[#d4af37]/50 cursor-pointer">
+                    <label className="text-xs text-gray-400 uppercase tracking-widest font-semibold">Category <span className="text-red-400">*</span></label>
+                    <select name="category" defaultValue={editingSupplier?.category || "retail"} className="w-full bg-[#020408] border border-white/10 text-sm text-gray-300 rounded-md px-4 py-2 focus:outline-none focus:border-[#d4af37]/50 cursor-pointer">
                       <option value="retail">Retail Items</option>
                       <option value="food">Fresh Produce</option>
                       <option value="beverage">Beverage</option>
@@ -199,19 +202,28 @@ export default function SuppliersClient({ suppliers }: { suppliers: SupplierRow[
                     </select>
                   </div>
                 </div>
+                {editingSupplier && (
+                  <div className="space-y-2">
+                    <label className="text-xs text-gray-400 uppercase tracking-widest font-semibold">Status <span className="text-red-400">*</span></label>
+                    <select name="is_active" defaultValue={editingSupplier.is_active ? "true" : "false"} className="w-full bg-[#020408] border border-white/10 text-sm text-gray-300 rounded-md px-4 py-2 focus:outline-none focus:border-[#d4af37]/50 cursor-pointer">
+                      <option value="true">Active</option>
+                      <option value="false">Inactive</option>
+                    </select>
+                  </div>
+                )}
                 <div className="grid grid-cols-2 gap-5">
                   <div className="space-y-2">
                     <label className="text-xs text-gray-400 uppercase tracking-widest font-semibold">Phone Number <span className="text-red-400">*</span></label>
-                    <input type="tel" name="contact_phone" placeholder="+60 12-345 6789" className="w-full bg-[#020408] border border-white/10 text-sm text-white rounded-md px-4 py-2 focus:outline-none focus:border-[#d4af37]/50 transition-all" required />
+                    <input type="tel" name="contact_phone" defaultValue={editingSupplier?.contact_phone || ""} placeholder="+60 12-345 6789" className="w-full bg-[#020408] border border-white/10 text-sm text-white rounded-md px-4 py-2 focus:outline-none focus:border-[#d4af37]/50 transition-all" required />
                   </div>
                   <div className="space-y-2">
                     <label className="text-xs text-gray-400 uppercase tracking-widest font-semibold">Email Address <span className="text-red-400">*</span></label>
-                    <input type="email" name="contact_email" placeholder="orders@company.com" className="w-full bg-[#020408] border border-white/10 text-sm text-white rounded-md px-4 py-2 focus:outline-none focus:border-[#d4af37]/50 transition-all" required />
+                    <input type="email" name="contact_email" defaultValue={editingSupplier?.contact_email || ""} placeholder="orders@company.com" className="w-full bg-[#020408] border border-white/10 text-sm text-white rounded-md px-4 py-2 focus:outline-none focus:border-[#d4af37]/50 transition-all" required />
                   </div>
                 </div>
                 <div className="space-y-2">
                   <label className="text-xs text-gray-400 uppercase tracking-widest font-semibold">Physical / Billing Address</label>
-                  <textarea rows={2} name="address" placeholder="Unit 5, Lot 1234, Jalan Industri Utama..." className="w-full bg-[#020408] border border-white/10 text-sm text-white rounded-md px-4 py-2 focus:outline-none focus:border-[#d4af37]/50 transition-all resize-none" />
+                  <textarea rows={2} name="address" defaultValue={editingSupplier?.address || ""} placeholder="Unit 5, Lot 1234, Jalan Industri Utama..." className="w-full bg-[#020408] border border-white/10 text-sm text-white rounded-md px-4 py-2 focus:outline-none focus:border-[#d4af37]/50 transition-all resize-none" />
                 </div>
                 <div className="flex justify-end space-x-3 pt-2">
                   <button type="button" onClick={() => setModalOpen(false)} disabled={isPending} className="px-4 py-2 text-sm font-medium rounded text-gray-400 hover:text-white hover:bg-white/5 transition-colors disabled:opacity-50">Cancel</button>

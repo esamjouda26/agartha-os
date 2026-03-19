@@ -111,11 +111,7 @@ export default function AdminLayoutClient({
         </nav>
 
         {/* Sign Out + Info */}
-        <div className="p-6 border-t border-white/10 space-y-3">
-          <div className="flex items-center gap-2 text-[10px] text-gray-500">
-            <Globe className="w-3 h-3" />
-            <span className="truncate">{staffRole ?? "admin"}@agarthaworld.com</span>
-          </div>
+        <div className="p-6 border-t border-white/10">
           <button
             onClick={handleSignOut}
             className="w-full flex items-center justify-center space-x-2 py-2.5 rounded border border-white/10 hover:border-[#d4af37]/50 hover:text-[#d4af37] transition-colors text-sm text-gray-400"
@@ -123,7 +119,6 @@ export default function AdminLayoutClient({
             <LogOut className="w-4 h-4" />
             <span>Sign Out</span>
           </button>
-          <p className="text-[8px] text-gray-600 text-center tracking-widest uppercase">Admin Portal v1.0</p>
         </div>
       </aside>
 

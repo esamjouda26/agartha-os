@@ -69,13 +69,8 @@ export default function StaffingClient({ staff, today }: { staff: StaffShiftRow[
   return (
     <div className="space-y-8 pb-10">
       {/* ═══ Header ═══ */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="font-cinzel text-xl text-[#d4af37] flex items-center tracking-wider">
-            <Users className="w-6 h-6 mr-3" /> Café Staffing Roster
-          </h3>
-          <p className="text-xs text-gray-400 mt-1 uppercase tracking-widest">Real-time floor tracking &amp; shift management</p>
-        </div>
+      <div className="flex items-center justify-end">
+        
         <div className="flex items-center space-x-2 bg-[#020408]/50 p-2 rounded border border-white/10">
           <span className="w-2 h-2 rounded-full bg-green-400 ml-2 animate-pulse" />
           <span className="text-xs font-mono text-green-400 px-2 tracking-wide">Live Sync Active</span>

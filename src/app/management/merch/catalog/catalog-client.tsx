@@ -80,13 +80,8 @@ export default function CatalogClient({
   return (
     <div className="space-y-8 pb-10">
       {/* ═══ Header ═══ */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="font-cinzel text-xl text-[#d4af37] flex items-center tracking-wider">
-            <Package className="w-6 h-6 mr-3" /> Product Catalog
-          </h3>
-          <p className="text-xs text-gray-400 mt-1 uppercase tracking-widest">Central Merchandise &amp; Ingredient Registry</p>
-        </div>
+      <div className="flex items-center justify-end">
+        
         <button
           onClick={() => { setEditingProduct(null); setModalOpen(true); }}
           className="bg-gradient-to-r from-[#806b45] to-[#d4af37] hover:from-[#d4af37] hover:to-yellow-300 text-[#020408] font-bold px-5 py-2.5 rounded shadow-[0_0_15px_rgba(212,175,55,0.3)] hover:shadow-[0_0_25px_rgba(212,175,55,0.5)] transition-all flex items-center text-sm uppercase tracking-widest"

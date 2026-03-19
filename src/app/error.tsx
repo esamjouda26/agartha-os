@@ -9,9 +9,7 @@ export default function GlobalError({
   reset: () => void;
 }) {
   return (
-    <html lang="en" className="dark">
-      <body className="bg-[#0a0a0f] text-[#f0f0f5] font-sans antialiased">
-        <div className="flex min-h-screen flex-col items-center justify-center p-8">
+    <div className="flex min-h-screen flex-col items-center justify-center p-8 bg-[#0a0a0f] text-[#f0f0f5] font-sans antialiased">
           <div className="rounded-xl border border-[#2a2a3a] bg-[#12121a]/60 backdrop-blur-xl p-12 text-center max-w-md">
             <h1
               className="text-4xl font-bold mb-4"
@@ -42,8 +40,6 @@ export default function GlobalError({
               </Link>
             </div>
           </div>
-        </div>
-      </body>
-    </html>
+    </div>
   );
 }

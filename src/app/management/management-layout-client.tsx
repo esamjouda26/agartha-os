@@ -12,7 +12,7 @@ import {
   Map, ShieldAlert,
   RadioTower, Radar, Siren, Clock,
   CalendarClock, ShieldCheck,
-  Activity, LogOut, Menu, X, Briefcase,
+  Activity, LogOut, Menu, X, Briefcase, Globe,
 } from "lucide-react";
 
 // ── Per-role navs sourced directly from management legacy index routing ──────
@@ -31,7 +31,7 @@ const MANAGEMENT_ROUTES: Record<string, { href: string; label: string; icon: Rea
     { href: "/management/merch/suppliers", label: "Suppliers",        icon: Truck },
   ],
   maintenance_manager: [
-    { href: "/management/operations/telemetry",    label: "Spatial Telemetry",  icon: Map },
+    { href: "/management/maintenance/telemetry",    label: "Spatial Telemetry",  icon: Map },
     { href: "/management/operations/maintenance",  label: "Operations Control", icon: ShieldAlert },
   ],
   inventory_manager: [
@@ -121,10 +121,15 @@ export default function ManagementLayoutClient({
           {navItems.length === 0 ? (
             <p className="px-6 text-xs text-gray-500 uppercase tracking-widest">Modules Pending...</p>
           ) : (
-            <ul className="space-y-1 px-4">
+            <>
+              <p className="px-8 text-[9px] text-gray-500 uppercase tracking-[0.2em] font-bold mb-3 flex items-center">
+                <span className="text-[#d4af37] mr-1.5">▸</span> {roleLabel}
+              </p>
+              <ul className="space-y-1 px-4">
               {navItems.map((item) => {
                 const Icon = item.icon;
-                const isActive = pathname.startsWith(item.href);
+                const isRootLevel = item.href.split('/').length <= 3;
+                const isActive = isRootLevel ? pathname === item.href : pathname.startsWith(item.href);
                 return (
                   <li key={item.href}>
                     <Link
@@ -143,10 +148,11 @@ export default function ManagementLayoutClient({
                 );
               })}
             </ul>
+            </>
           )}
         </nav>
 
-        {/* Sign Out */}
+        {/* Sign Out + Info */}
         <div className="p-6 border-t border-white/10">
           <button
             onClick={handleSignOut}
@@ -181,27 +187,21 @@ export default function ManagementLayoutClient({
           </div>
 
           <div className="flex items-center space-x-4 md:space-x-6">
-            {/* Live indicator */}
+            {/* Live indicator — desktop only */}
             <div className="hidden lg:flex items-center space-x-2 text-[#d4af37] border-r border-white/10 pr-6">
               <Activity className="w-4 h-4" />
-              <span className="text-[10px] uppercase tracking-widest">Live System Active</span>
+              <span className="text-[10px] uppercase tracking-widest">Live Stream Active</span>
             </div>
 
             {/* Role badge */}
             <div className="flex items-center space-x-2 bg-space/50 px-3 py-1.5 rounded border border-[#806b45]/30">
               <Briefcase className="w-4 h-4 text-[#806b45]" />
-              <span className="text-xs text-gray-300 font-orbitron hidden sm:inline">{roleLabel}</span>
+              <span className="text-xs text-gray-300 font-orbitron">{roleLabel}</span>
             </div>
 
-            {/* User info */}
-            <div className="flex items-center space-x-3">
-              <div className="hidden sm:block text-right">
-                <p className="text-sm font-medium text-white leading-tight">{displayName}</p>
-                <p className="text-[10px] text-[#d4af37] font-orbitron tracking-wide">{roleLabel}</p>
-              </div>
-              <div className="w-9 h-9 rounded-full bg-space border border-[#d4af37]/50 flex items-center justify-center shadow-[0_0_10px_rgba(212,175,55,0.2)]">
-                <Users className="w-4 h-4 text-[#d4af37]" />
-              </div>
+            {/* Avatar */}
+            <div className="w-9 h-9 rounded-full bg-space border border-[#d4af37]/50 flex items-center justify-center shadow-[0_0_10px_rgba(212,175,55,0.2)]">
+              <Users className="w-4 h-4 text-[#d4af37]" />
             </div>
           </div>
         </header>

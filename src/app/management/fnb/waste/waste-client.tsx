@@ -83,13 +83,8 @@ export default function WasteClient({ wasteLogs, menuItems, locations }: { waste
   return (
     <div className="space-y-8 pb-10">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="font-cinzel text-xl text-[#d4af37] flex items-center tracking-wider">
-            <Trash2 className="w-6 h-6 mr-3" /> Waste &amp; Prep Reports
-          </h3>
-          <p className="text-xs text-gray-400 mt-1 uppercase tracking-widest">Operational Loss &amp; Vendor Quality Tracking</p>
-        </div>
+      <div className="flex items-center justify-end">
+        
         <div className="flex items-center space-x-4">
           <button onClick={() => setWasteModal(true)} className="bg-red-500/20 text-red-400 border border-red-500/50 hover:bg-red-500 hover:text-white font-bold px-4 py-2 rounded transition-all flex items-center text-sm uppercase tracking-widest">
             <Plus className="w-4 h-4 mr-2" /> Log Waste

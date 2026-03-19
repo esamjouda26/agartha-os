@@ -51,6 +51,12 @@ export default function ZoneTelemetryPage() {
   const [realtimeStatus, setRealtimeStatus] = useState<"connecting" | "connected" | "disconnected">("connecting");
   const [collapsedLocations, setCollapsedLocations] = useState<Record<string, boolean>>({});
   const [hoveredZone, setHoveredZone] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+
+  const showToast = useCallback((msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 3500);
+  }, []);
 
   const refresh = useCallback(async () => {
     const [zoneData, crewData] = await Promise.all([
@@ -124,9 +130,12 @@ export default function ZoneTelemetryPage() {
           return { ...z, currentGuests, pct };
         }));
       })
-      .subscribe((status) => {
+      .subscribe((status, err) => {
         if (status === "SUBSCRIBED") setRealtimeStatus("connected");
-        else if (status === "CLOSED" || status === "CHANNEL_ERROR") setRealtimeStatus("disconnected");
+        else if (status === "CLOSED" || status === "CHANNEL_ERROR") {
+          setRealtimeStatus("disconnected");
+          if (status === "CHANNEL_ERROR") showToast("Error: Realtime socket connection failed or was refused.");
+        }
       });
     return () => { supabase.removeChannel(channel); };
   }, []);
@@ -164,9 +173,8 @@ export default function ZoneTelemetryPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="flex flex-col md:flex-row md:items-center justify-end gap-4">
         <div>
-          <h1 className="text-xl font-bold text-gradient">Zone Telemetry & Capacity</h1>
           <p className="text-xs text-muted-foreground mt-1 uppercase tracking-widest">
             Real-time guest + crew throughput — grouped by location
           </p>
@@ -319,6 +327,13 @@ export default function ZoneTelemetryPage() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Toast */}
+      {toast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-destructive/90 border border-destructive text-white px-6 py-3 rounded-full shadow-lg flex items-center gap-3 backdrop-blur-md z-[60] animate-in">
+          <span className="text-sm font-bold tracking-wide">{toast}</span>
         </div>
       )}
     </div>

@@ -8,16 +8,19 @@ import {
 import {
   fetchMaintenanceWorkOrdersAction,
   createWorkOrderAction,
-  authorizeMabAction,
+  updateWorkOrderAction,
   revokeMabAction,
   completeWorkOrderAction,
+  fetchSelectableVendorsAction,
+  fetchSelectableSponsorsAction,
 } from "../actions/maintenance";
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
 interface WorkOrder {
-  id: string; target_ci_id: string; vendor_company: string; vendor_mac_address: string | null;
+  id: string; target_ci_id: string; vendor_id: string; vendor_company: string; vendor_mac_address: string | null;
   scheduled_start: string; scheduled_end: string; mab_limit_hours: number;
+  scope: string | null;
   status: "pending_mac" | "active_mab" | "completed" | "revoked";
   sponsor_id: string | null; created_at: string; updated_at: string | null;
 }
@@ -37,6 +40,8 @@ function formatDt(iso: string) {
 
 export default function MaintenancePage() {
   const [workOrders, setWorkOrders] = useState<WorkOrder[]>([]);
+  const [vendors, setVendors] = useState<{id: string; name: string}[]>([]);
+  const [sponsors, setSponsors] = useState<{id: string; legal_name: string; role: string}[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
@@ -60,12 +65,23 @@ export default function MaintenancePage() {
     }
   );
 
-  const [macInputs, setMacInputs] = useState<Record<string, string>>({});
+  const [editWoId, setEditWoId] = useState<string | null>(null);
   const [newWo, setNewWo] = useState({ target_ci_id: "", vendor_company: "", scheduled_start: "", scheduled_end: "", mab_limit_hours: 4, sponsor: "", scope: "" });
 
   const showToast = useCallback((msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3500); }, []);
 
-  const refresh = useCallback(async () => { setLoading(true); const data = await fetchMaintenanceWorkOrdersAction(); setWorkOrders(data); setLoading(false); }, []);
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    const [woData, vData, sData] = await Promise.all([
+      fetchMaintenanceWorkOrdersAction(),
+      fetchSelectableVendorsAction(),
+      fetchSelectableSponsorsAction()
+    ]);
+    setWorkOrders(woData);
+    setVendors(vData);
+    setSponsors(sData);
+    setLoading(false);
+  }, []);
   useEffect(() => { refresh(); }, [refresh]);
 
   // Categorize work orders
@@ -73,31 +89,73 @@ export default function MaintenancePage() {
   const queueWos = optimisticWos.filter((wo) => wo.status === "pending_mac");
   const recentWos = optimisticWos.filter((wo) => wo.status === "completed" || wo.status === "revoked");
 
-  function handleCreate() {
-    if (!newWo.target_ci_id || !newWo.vendor_company || !newWo.scheduled_start || !newWo.scheduled_end) return;
+  const isFormValid = newWo.target_ci_id.trim() !== "" && 
+                      newWo.vendor_company.trim() !== "" && 
+                      newWo.scheduled_start !== "" && 
+                      newWo.scheduled_end !== "" &&
+                      (topology === "remote" || newWo.sponsor !== "");
+
+  function handleSave() {
+    if (!isFormValid) return;
     startTransition(async () => {
-      const tempWo: WorkOrder = {
-        id: `temp-${Date.now()}`, target_ci_id: newWo.target_ci_id, vendor_company: newWo.vendor_company,
-        vendor_mac_address: null, scheduled_start: new Date(newWo.scheduled_start).toISOString(),
-        scheduled_end: new Date(newWo.scheduled_end).toISOString(), mab_limit_hours: newWo.mab_limit_hours,
-        status: "pending_mac", sponsor_id: null, created_at: new Date().toISOString(), updated_at: null,
-      };
-      setOptimisticWos({ type: "add", wo: tempWo });
-      const res = await createWorkOrderAction({ ...newWo, scheduled_start: new Date(newWo.scheduled_start).toISOString(), scheduled_end: new Date(newWo.scheduled_end).toISOString() });
-      if (res.success) { showToast(`✅ Work Order dispatched and queued.`); setShowCreate(false); setNewWo({ target_ci_id: "", vendor_company: "", scheduled_start: "", scheduled_end: "", mab_limit_hours: 4, sponsor: "", scope: "" }); refresh(); }
-      else { showToast(`Error: ${res.error}`); refresh(); }
+      if (editWoId) {
+        setOptimisticWos({ type: "update_status", id: editWoId, status: "pending_mac" });
+        const res = await updateWorkOrderAction(editWoId, { 
+          target_ci_id: newWo.target_ci_id,
+          vendor_id: newWo.vendor_company,
+          mab_limit_hours: newWo.mab_limit_hours,
+          assigned_to: topology === "onsite" ? newWo.sponsor : undefined,
+          topology,
+          scope: newWo.scope,
+          scheduled_start: new Date(newWo.scheduled_start).toISOString(), 
+          scheduled_end: new Date(newWo.scheduled_end).toISOString() 
+        });
+        if (res.success) { 
+          showToast(`✅ Work Order updated.`); 
+          setShowCreate(false); 
+          setEditWoId(null); 
+          setNewWo({ target_ci_id: "", vendor_company: "", scheduled_start: "", scheduled_end: "", mab_limit_hours: 4, sponsor: "", scope: "" }); 
+          refresh(); 
+        }
+        else { showToast(`Error: ${res.error}`); refresh(); }
+      } else {
+        const tempWo: WorkOrder = {
+          id: `temp-${Date.now()}`, target_ci_id: newWo.target_ci_id, vendor_company: "Saving...", vendor_id: newWo.vendor_company,
+          vendor_mac_address: null, scheduled_start: new Date(newWo.scheduled_start).toISOString(),
+          scheduled_end: new Date(newWo.scheduled_end).toISOString(), mab_limit_hours: newWo.mab_limit_hours,
+          scope: newWo.scope,
+          status: "pending_mac", sponsor_id: null, created_at: new Date().toISOString(), updated_at: null,
+        };
+        setOptimisticWos({ type: "add", wo: tempWo });
+        const res = await createWorkOrderAction({ 
+          target_ci_id: newWo.target_ci_id,
+          vendor_id: newWo.vendor_company,
+          mab_limit_hours: newWo.mab_limit_hours,
+          assigned_to: topology === "onsite" ? newWo.sponsor : undefined,
+          topology,
+          scope: newWo.scope,
+          scheduled_start: new Date(newWo.scheduled_start).toISOString(), 
+          scheduled_end: new Date(newWo.scheduled_end).toISOString() 
+        });
+        if (res.success) { showToast(`✅ Work Order dispatched and queued.`); setShowCreate(false); setNewWo({ target_ci_id: "", vendor_company: "", scheduled_start: "", scheduled_end: "", mab_limit_hours: 4, sponsor: "", scope: "" }); refresh(); }
+        else { showToast(`Error: ${res.error}`); refresh(); }
+      }
     });
   }
 
-  function handleAuthorizeMab(woId: string) {
-    const mac = macInputs[woId]?.trim();
-    if (!mac) { showToast("Enter a MAC address first"); return; }
-    startTransition(async () => {
-      setOptimisticWos({ type: "update_status", id: woId, status: "active_mab", mac: mac.toUpperCase() });
-      const res = await authorizeMabAction(woId, mac);
-      if (res.success) { showToast("✅ MAB Authorized — Port Unlocked"); refresh(); }
-      else { showToast(`Error: ${res.error}`); refresh(); }
+  function handleEditInit(wo: WorkOrder) {
+    setEditWoId(wo.id);
+    setNewWo({
+      target_ci_id: wo.target_ci_id,
+      vendor_company: wo.vendor_id,
+      scheduled_start: new Date(wo.scheduled_start).toISOString().slice(0, 16),
+      scheduled_end: new Date(wo.scheduled_end).toISOString().slice(0, 16),
+      mab_limit_hours: wo.mab_limit_hours,
+      sponsor: wo.sponsor_id || "", 
+      scope: wo.scope || "",
     });
+    setTopology(wo.vendor_mac_address ? "remote" : "onsite");
+    setShowCreate(true);
   }
 
   function handleRevoke(woId: string) {
@@ -121,13 +179,8 @@ export default function MaintenancePage() {
   return (
     <div className="space-y-6 pb-10">
       {/* ── Header ──────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between pb-4 border-b border-[#806b45]/30">
-        <div>
-          <h1 className="font-cinzel text-xl text-[#d4af37] font-bold tracking-wider uppercase flex items-center gap-3">
-            <ShieldAlert className="w-6 h-6" /> Operations Control
-          </h1>
-          <p className="text-[10px] text-gray-400 uppercase tracking-widest mt-1">Unified Dispatch & Access Oversight</p>
-        </div>
+      <div className="flex items-center justify-end pb-4 border-b border-[#806b45]/30">
+        
         <button onClick={() => setShowCreate(true)}
           className="bg-gradient-to-r from-[#806b45] to-[#d4af37] hover:from-[#d4af37] hover:to-yellow-300 text-black font-bold uppercase tracking-widest px-6 py-2.5 rounded transition-all flex items-center gap-2 shadow-[0_0_15px_rgba(212,175,55,0.3)] hover:shadow-[0_0_25px_rgba(212,175,55,0.5)] text-xs">
           <Plus className="w-4 h-4" /> Create Work Order
@@ -230,7 +283,10 @@ export default function MaintenancePage() {
                   ) : queueWos.map((wo) => (
                     <tr key={wo.id} className="border-b border-white/5 hover:bg-[rgba(212,175,55,0.03)] transition-colors opacity-80 hover:opacity-100">
                       <td className="py-3 px-4 font-orbitron text-gray-400 text-[11px]">{wo.id.slice(0, 8).toUpperCase()}</td>
-                      <td className="py-3 px-4">{wo.target_ci_id}</td>
+                      <td className="py-3 px-4">
+                        <div className="font-bold">{wo.target_ci_id}</div>
+                        {wo.scope && <div className="text-[10px] text-gray-500 truncate max-w-[150px] mt-0.5">{wo.scope}</div>}
+                      </td>
                       <td className="py-3 px-4">{wo.vendor_company}</td>
                       <td className="py-3 px-4 font-mono text-[10px]">{formatDt(wo.scheduled_start)}</td>
                       <td className="py-3 px-4 font-mono text-[10px]">{wo.mab_limit_hours * 60}m</td>
@@ -239,12 +295,10 @@ export default function MaintenancePage() {
                       </td>
                       <td className="py-3 px-4 text-right">
                         <div className="flex justify-end gap-2">
-                          <div className="flex items-center gap-1">
-                            <input type="text" value={macInputs[wo.id] ?? ""} onChange={(e) => setMacInputs((p) => ({ ...p, [wo.id]: e.target.value }))}
-                              placeholder="MAC Address" className="bg-[#020408] border border-white/10 text-xs text-white rounded px-2 py-1 w-[140px] font-mono uppercase focus:outline-none focus:border-[rgba(212,175,55,0.5)]" />
-                            <button onClick={() => handleAuthorizeMab(wo.id)} disabled={isPending || !macInputs[wo.id]?.trim()}
-                              className="bg-emerald-600/80 text-white hover:bg-emerald-500 px-3 py-1.5 rounded text-[10px] font-bold uppercase tracking-widest transition disabled:opacity-40">Authorize</button>
-                          </div>
+                          <button onClick={() => handleEditInit(wo)} disabled={isPending}
+                            className="bg-blue-600/80 text-white hover:bg-blue-500 px-3 py-1.5 rounded text-[10px] font-bold uppercase tracking-widest transition disabled:opacity-40">Edit</button>
+                          <button onClick={() => handleRevoke(wo.id)} disabled={isPending}
+                            className="bg-red-950/40 text-red-400 hover:bg-red-500 hover:text-white border border-red-500/30 hover:border-red-500 px-3 py-1.5 rounded text-[10px] font-bold uppercase tracking-widest transition disabled:opacity-40">Cancel</button>
                         </div>
                       </td>
                     </tr>
@@ -324,10 +378,9 @@ export default function MaintenancePage() {
                   <select value={newWo.vendor_company} onChange={(e) => setNewWo({ ...newWo, vendor_company: e.target.value })}
                     className="w-full bg-black/50 border border-white/10 text-white px-3.5 py-2.5 rounded text-sm focus:outline-none focus:border-[#d4af37] cursor-pointer">
                     <option value="">Select vendor…</option>
-                    <option>NovaTech Solutions (Tier 1)</option>
-                    <option>VisualEdge Ltd (AV Special)</option>
-                    <option>Apex Contracting (Facilities)</option>
-                    <option>Internal Maintenance Crew</option>
+                    {vendors.map((v) => (
+                      <option key={v.id} value={v.id}>{v.name}</option>
+                    ))}
                   </select>
                 </div>
               </div>
@@ -352,9 +405,9 @@ export default function MaintenancePage() {
                     <select value={newWo.sponsor} onChange={(e) => setNewWo({ ...newWo, sponsor: e.target.value })}
                       className="w-full bg-black/50 border border-amber-500/30 text-white px-3.5 py-2.5 rounded text-sm focus:outline-none focus:border-amber-500 cursor-pointer">
                       <option value="" disabled>Select escort/sponsor…</option>
-                      <option>K. Chen (Ops Lead)</option>
-                      <option>J. Doe (Security)</option>
-                      <option>R. Smith (Facilities)</option>
+                      {sponsors.map((s) => (
+                        <option key={s.id} value={s.id}>{s.legal_name} ({s.role})</option>
+                      ))}
                     </select>
                   </div>
                 )}
@@ -389,10 +442,10 @@ export default function MaintenancePage() {
             </div>
             {/* Modal Footer */}
             <div className="px-6 py-4 border-t border-[#806b45]/30 bg-[#020408]/90 flex justify-end gap-3 sticky bottom-0 rounded-b-xl">
-              <button onClick={() => setShowCreate(false)} className="px-5 py-2 rounded text-xs text-gray-400 hover:text-white hover:bg-white/5 uppercase tracking-widest transition-colors">Cancel</button>
-              <button onClick={handleCreate} disabled={isPending}
-                className="px-6 py-2 rounded bg-[#d4af37] text-black font-bold text-xs uppercase tracking-widest flex items-center gap-2 hover:bg-white transition-colors shadow-[0_0_15px_rgba(212,175,55,0.2)] disabled:opacity-40">
-                <Send className="w-3.5 h-3.5" /> Dispatch & Authorize
+              <button onClick={() => { setShowCreate(false); setEditWoId(null); }} className="px-5 py-2 rounded text-xs text-gray-400 hover:text-white hover:bg-white/5 uppercase tracking-widest transition-colors">Cancel</button>
+              <button onClick={handleSave} disabled={isPending || !isFormValid}
+                className="px-6 py-2 rounded bg-[#d4af37] text-black font-bold text-xs uppercase tracking-widest flex items-center gap-2 hover:bg-white transition-colors shadow-[0_0_15px_rgba(212,175,55,0.2)] disabled:opacity-40 disabled:cursor-not-allowed">
+                <Send className="w-3.5 h-3.5" /> {editWoId ? "Save Changes" : "Dispatch & Queue"}
               </button>
             </div>
           </div>

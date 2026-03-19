@@ -138,13 +138,8 @@ export default function ReorderPointsClient({ products, suppliers }: { products:
   return (
     <div className="space-y-8 pb-10">
       {/* ═══ Header ═══ */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="font-cinzel text-xl text-[#d4af37] flex items-center tracking-wider">
-            <AlertTriangle className="w-6 h-6 mr-3" /> Reorder Points
-          </h3>
-          <p className="text-xs text-gray-400 mt-1 uppercase tracking-widest">Stock Level Monitoring &amp; Automated PO Generation</p>
-        </div>
+      <div className="flex items-center justify-end">
+        
         <div className="flex items-center space-x-4">
           {/* Low stock toggle */}
           <label className="flex items-center cursor-pointer space-x-2">

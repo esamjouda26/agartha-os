@@ -157,11 +157,8 @@ export default function AttendanceCompliancePage() {
   return (
     <div className="space-y-5 pb-10">
       {/* ── Header ──────────────────────────────────────────────── */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h3 className="font-cinzel text-xl text-[#d4af37] flex items-center tracking-wider"><Shield className="w-6 h-6 mr-3" /> Attendance & Compliance</h3>
-          <p className="text-xs text-gray-400 mt-1 uppercase tracking-widest">Monthly Compliance Ledger · Exception Resolution</p>
-        </div>
+      <div className="flex flex-col md:flex-row md:items-center justify-end gap-4">
+        
         <div className="flex items-center gap-2">
           <select className="bg-[#020408] border border-white/10 text-sm text-gray-400 rounded-md px-3 py-2 focus:outline-none focus:border-[rgba(212,175,55,0.5)] cursor-pointer appearance-none">
             <option>March 2026</option>

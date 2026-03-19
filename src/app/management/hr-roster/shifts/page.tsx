@@ -154,11 +154,8 @@ export default function ShiftSchedulingPage() {
   return (
     <div className="space-y-5 pb-10">
       {/* ── Header ──────────────────────────────────────────────── */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h3 className="font-cinzel text-xl text-[#d4af37] flex items-center tracking-wider"><CalendarClock className="w-6 h-6 mr-3" /> Workforce Roster & Deployment</h3>
-          <p className="text-xs text-gray-400 mt-1 uppercase tracking-widest">Shift Dictionary · Base Pattern · Live Command</p>
-        </div>
+      <div className="flex flex-col md:flex-row md:items-center justify-end gap-4">
+        
       </div>
 
       {/* ── Global Shift Dictionary ──────────────────────────────── */}

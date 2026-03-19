@@ -158,13 +158,8 @@ export default function InventoryAuditsPage() {
   return (
     <div className="space-y-8 pb-10">
       {/* ── Header ──────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="font-cinzel text-lg text-[#d4af37] flex items-center tracking-wider">
-            <ClipboardCheck className="w-5 h-5 mr-2" /> Audit & Reconciliation
-          </h3>
-          <p className="text-xs text-gray-400 mt-1 uppercase tracking-widest">Cycle Counts, Discrepancy Investigation & Write-offs</p>
-        </div>
+      <div className="flex items-center justify-end">
+        
         <button onClick={() => { setScheduleModal(true); setSchedDate(new Date().toISOString().split("T")[0]); }}
           className="bg-gradient-to-r from-[#806b45] to-[#d4af37] hover:from-[#d4af37] hover:to-yellow-300 text-[#020408] font-bold px-5 py-2.5 rounded shadow-[0_0_15px_rgba(212,175,55,0.3)] hover:shadow-[0_0_25px_rgba(212,175,55,0.5)] transition-all flex items-center text-sm uppercase tracking-widest">
           <CalendarPlus className="w-4 h-4 mr-2" /> Schedule Count

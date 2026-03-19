@@ -74,13 +74,8 @@ export default function SupplierPerfClient({ suppliers }: { suppliers: SupplierP
   return (
     <div className="space-y-8 pb-10">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="font-cinzel text-xl text-[#d4af37] flex items-center tracking-wider">
-            <Truck className="w-6 h-6 mr-3" /> Supplier Performance
-          </h3>
-          <p className="text-xs text-gray-400 mt-1 uppercase tracking-widest">Raw Ingredient &amp; Retail Yield Accountability</p>
-        </div>
+      <div className="flex items-center justify-end">
+        
         <div className="flex items-center space-x-4">
           <div className="glass-panel rounded-lg p-1 flex items-center space-x-1 border-[#d4af37]/20 shadow-[0_4px_15px_rgba(0,0,0,0.3)]">
             {["Today", "7D", "MTD", "YTD"].map((d) => (

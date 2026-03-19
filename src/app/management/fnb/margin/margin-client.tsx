@@ -46,13 +46,8 @@ export default function MarginClient({ items }: { items: MarginRow[] }) {
   return (
     <div className="space-y-8 pb-10">
       {/* ═══ Header ═══ */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="font-cinzel text-xl text-[#d4af37] flex items-center tracking-wider">
-            <PieChart className="w-6 h-6 mr-3" /> Margin &amp; Profitability
-          </h3>
-          <p className="text-xs text-gray-400 mt-1 uppercase tracking-widest">Target vs Actual Performance (Waste Adjusted)</p>
-        </div>
+      <div className="flex items-center justify-end">
+        
         <div className="flex items-center space-x-4">
           <div className="glass-panel rounded-lg p-1 flex items-center space-x-1 border-[#d4af37]/20 shadow-[0_4px_15px_rgba(0,0,0,0.3)]">
             {["Today", "7D", "MTD", "YTD"].map((d) => (

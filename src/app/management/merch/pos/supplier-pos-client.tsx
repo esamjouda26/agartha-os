@@ -59,13 +59,8 @@ export default function SupplierPOsClient({ purchaseOrders }: { purchaseOrders: 
   return (
     <div className="space-y-8 pb-10">
       {/* ═══ Header ═══ */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="font-cinzel text-xl text-[#d4af37] flex items-center tracking-wider">
-            <ClipboardList className="w-6 h-6 mr-3" /> Supplier POs
-          </h3>
-          <p className="text-xs text-gray-400 mt-1 uppercase tracking-widest">Purchasing &amp; Receiving — Full PO Lifecycle</p>
-        </div>
+      <div className="flex items-center justify-end">
+        
         <select
           value={filterStatus}
           onChange={(e) => setFilterStatus(e.target.value)}

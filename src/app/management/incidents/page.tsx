@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useTransition } from "react";
 import {
   Siren, Search, ChevronLeft, ChevronRight, AlertTriangle, CheckCircle2,
   X, FileText, Plus, FileDown, Filter, Calendar, Paperclip, ImageOff,
 } from "lucide-react";
 import { fetchIncidentsAction } from "../actions";
+import { createIncidentAction, resolveIncidentAction } from "./actions";
 import DomainAuditTable from "@/components/DomainAuditTable";
 
 // ── Types ───────────────────────────────────────────────────────────────────
@@ -50,6 +51,7 @@ export default function IncidentsPage() {
   const [toast, setToast] = useState<string | null>(null);
   const [detailModal, setDetailModal] = useState<Incident | null>(null);
   const [createModal, setCreateModal] = useState(false);
+  const [isPending, startTransition] = useTransition();
   // Create form
   const [createCat, setCreateCat] = useState("biohazard");
   const [createLogger, setCreateLogger] = useState("");
@@ -88,23 +90,30 @@ export default function IncidentsPage() {
 
   function submitCreate() {
     if (!createLogger.trim() || !createRemark.trim()) { showToast("⚠️ Logged By and Remark are required."); return; }
-    const newInc: Incident = {
-      id: "INC-" + String(incidents.length + 1).padStart(4, "0"),
-      category: createCat, status: "open", description: createRemark,
-      created_at: new Date().toISOString(), zones: null,
-      reported_by: createLogger, reported_by_role: "Ops Manager (Manual)",
-    };
-    setIncidents((prev) => [newInc, ...prev]);
-    setTotal((t) => t + 1);
-    setCreateModal(false);
-    setCreateLogger(""); setCreateRemark(""); setCreateFile(null);
-    showToast(`✅ Incident ${newInc.id} logged successfully.`);
+    startTransition(async () => {
+      try {
+        await createIncidentAction({ category: createCat, description: createRemark });
+        setCreateModal(false);
+        setCreateLogger(""); setCreateRemark(""); setCreateFile(null);
+        showToast(`✅ Incident logged successfully via IAM Ledger.`);
+        load();
+      } catch (err: any) {
+        showToast(`❌ Failed to log: ${err.message}`);
+      }
+    });
   }
 
   function resolveIncident(id: string) {
-    setIncidents((prev) => prev.map((i) => i.id === id ? { ...i, status: "resolved" } : i));
-    setDetailModal(null);
-    showToast(`✅ ${id} marked as resolved.`);
+    startTransition(async () => {
+      try {
+        await resolveIncidentAction(id);
+        setDetailModal(null);
+        showToast(`✅ Incident ${id.slice(0, 12)} marked as resolved.`);
+        load();
+      } catch (err: any) {
+        showToast(`❌ Failed to resolve: ${err.message}`);
+      }
+    });
   }
 
   function formatTs(iso: string) {
@@ -115,13 +124,8 @@ export default function IncidentsPage() {
   return (
     <div className="space-y-5 pb-10">
       {/* ── Header ──────────────────────────────────────────────── */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h3 className="font-cinzel text-lg text-[#d4af37] flex items-center tracking-wider">
-            <Siren className="w-5 h-5 mr-2" /> Incident Log
-          </h3>
-          <p className="text-xs text-gray-400 mt-1 uppercase tracking-widest">Operational Incident Ledger — Read & Log Interface</p>
-        </div>
+      <div className="flex flex-col md:flex-row md:items-center justify-end gap-4">
+        
         <div className="flex items-center gap-3 flex-wrap">
           {/* Date Range Filter */}
           <div className="glass-panel rounded-lg p-2 flex items-center justify-between w-fit border-[rgba(212,175,55,0.2)] shadow-[0_4px_15px_rgba(0,0,0,0.3)]">

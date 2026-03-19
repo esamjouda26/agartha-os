@@ -28,8 +28,8 @@ export default async function FnBWastePrepPage() {
       created_at,
       fnb_menu_items (
         name,
-        category,
-        cost_price
+        menu_category,
+        unit_price
       )
     `)
     .order("created_at", { ascending: false })
@@ -41,12 +41,12 @@ export default async function FnBWastePrepPage() {
 
   const formattedLogs: WasteRow[] = (data || []).map((row: any) => {
     const item = row.fnb_menu_items || {};
-    const cost = item.cost_price || 0;
+    const cost = item.unit_price || 0;
     
     return {
       id: row.id,
       item_name: item.name || "Unknown Item",
-      category: item.category || "Prepared Item",
+      category: item.menu_category || "Prepared Item",
       location: null, // Sink locations aren't directly tracked per item in waste context purely here
       supplier_name: null, // Assembled 
       reason: row.reason,
@@ -58,13 +58,13 @@ export default async function FnBWastePrepPage() {
   });
   const { data: menuData } = await supabase
     .from("fnb_menu_items")
-    .select("id, name, category, unit_price")
+    .select("id, name, menu_category, unit_price")
     .eq("status", "available");
 
   const menuItems: any[] = (menuData || []).map((m: any) => ({
     id: m.id,
     name: m.name,
-    category: m.category,
+    category: m.menu_category,
     price: m.unit_price,
   }));
 

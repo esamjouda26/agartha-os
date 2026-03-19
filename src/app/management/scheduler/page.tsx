@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useTransition } from "react";
 import {
   Clock, Activity, ChevronLeft, ChevronRight, X, AlertTriangle, Plus,
   Calendar, CheckCircle2,
@@ -10,6 +10,9 @@ import {
   fetchTimeSlotsForSchedulerAction,
   overrideSlotCapacityAction,
   generateTimeSlotsAction,
+  fetchActiveConstraintsAction,
+  createSlotConstraintAction,
+  fetchMonthlyForecastAction
 } from "../actions";
 import DomainAuditTable from "@/components/DomainAuditTable";
 
@@ -26,42 +29,28 @@ interface TimeSlotRow {
 
 // ── Operational Timeline Data (matching legacy) ─────────────────────────────
 
-function genTimelineData() {
-  const times: { label: string; pct: number }[] = [];
-  for (let h = 8; h <= 18; h++) {
-    for (const m of ["00", "30"]) {
-      const t = `${h.toString().padStart(2, "0")}:${m}`;
-      let base = 30;
-      if (t >= "13:00" && t <= "14:30") base = 90;
-      if (t === "15:30") base = 100;
-      let actual = Math.min(100, Math.floor(base + (Math.random() * 20 - 5)));
-      if (t === "10:00" || t === "10:30") actual = 45;
-      if (t === "16:00" || t === "16:30") actual = 35;
-      times.push({ label: t, pct: actual });
-    }
-  }
-  return times;
-}
-
-function genForecastDays(month: number, year: number) {
+function getCalendarDays(month: number, year: number, forecastData: { date: string, utilization: number }[]) {
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const firstDayOfWeek = (new Date(year, month, 1).getDay() + 6) % 7; // Mon=0
   const cells: { day: number | null; status: "low" | "med" | "full" }[] = [];
   for (let i = 0; i < firstDayOfWeek; i++) cells.push({ day: null, status: "low" });
+  
+  const loadMap = new Map<number, number>();
+  for (const f of forecastData) {
+     const d = parseInt(f.date.split("-")[2], 10);
+     loadMap.set(d, f.utilization);
+  }
+  
   for (let d = 1; d <= daysInMonth; d++) {
-    const r = Math.random();
-    cells.push({ day: d, status: r > 0.8 ? "full" : r > 0.5 ? "med" : "low" });
+    const util = loadMap.get(d) ?? 0;
+    let status: "low" | "med" | "full" = "low";
+    if (util >= 90) status = "full";
+    else if (util >= 50) status = "med";
+    
+    cells.push({ day: d, status });
   }
   return cells;
 }
-
-const CONSTRAINTS = [
-  { start: "13:00", end: "13:15", label: "Peak Full", desc: "98% Capacity Reached", type: "peak" as const },
-  { start: "14:00", end: "14:15", label: "Peak Full", desc: "100% Capacity Reached", type: "peak" as const },
-  { start: "15:00", end: "15:15", label: "Busy", desc: "91% Capacity Reached", type: "warning" as const },
-  { start: "16:00", end: "17:00", label: "VIP Block", desc: "Private Corporate Booking (Gate C)", type: "vip" as const },
-  { start: "10:00", end: "10:30", label: "System", desc: "Morning Hardware Reboot / Calibration", type: "system" as const },
-];
 
 const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
@@ -91,8 +80,39 @@ export default function SchedulerPage() {
   const [blockModal, setBlockModal] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
-  const timelineData = useMemo(() => genTimelineData(), [selectedDay, forecastMonth]);
-  const forecastDays = useMemo(() => genForecastDays(forecastMonth, forecastYear), [forecastMonth, forecastYear]);
+  const [isPending, startTransition] = useTransition();
+  const [activeConstraints, setActiveConstraints] = useState<any[]>([]);
+  const [monthlyForecast, setMonthlyForecast] = useState<{ date: string, utilization: number }[]>([]);
+
+  useEffect(() => {
+    fetchActiveConstraintsAction(selectedDate).then(setActiveConstraints);
+  }, [selectedDate]);
+
+  useEffect(() => {
+    if (!selectedExp) return;
+    fetchMonthlyForecastAction(forecastYear, forecastMonth, selectedExp).then(setMonthlyForecast);
+  }, [forecastYear, forecastMonth, selectedExp]);
+
+  const currentExp = experiences.find((e) => e.id === selectedExp);
+
+  const timelineData = useMemo(() => {
+    const times: { label: string; pct: number }[] = [];
+    for (let h = 8; h <= 18; h++) {
+      for (const m of ["00", "30"]) {
+        const t = `${h.toString().padStart(2, "0")}:${m}`;
+        const slot = slots.find((s) => s.start_time.startsWith(t));
+        let pct = 0;
+        if (slot) {
+          const cap = slot.override_capacity ?? currentExp?.capacity_per_slot ?? 0;
+          if (cap > 0) pct = Math.min(100, Math.floor((slot.booked_count / cap) * 100));
+        }
+        times.push({ label: t, pct });
+      }
+    }
+    return times;
+  }, [slots, currentExp]);
+
+  const forecastDays = useMemo(() => getCalendarDays(forecastMonth, forecastYear, monthlyForecast), [forecastMonth, forecastYear, monthlyForecast]);
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3500); };
 
@@ -114,8 +134,6 @@ export default function SchedulerPage() {
   }, [selectedExp, selectedDate]);
 
   useEffect(() => { loadSlots(); }, [loadSlots]);
-
-  const currentExp = experiences.find((e) => e.id === selectedExp);
 
   async function handleOverride(slotId: string) {
     const val = overrideVal.trim() === "" ? null : parseInt(overrideVal);
@@ -147,13 +165,8 @@ export default function SchedulerPage() {
   return (
     <div className="space-y-5 pb-10">
       {/* ── Header ──────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="font-cinzel text-lg text-[#d4af37] flex items-center tracking-wider">
-            <Clock className="w-5 h-5 mr-2" /> Operational Timeline & Scheduler
-          </h3>
-          <p className="text-xs text-gray-400 mt-1 uppercase tracking-widest">Capacity Forecasting & Time Slot Control</p>
-        </div>
+      <div className="flex items-center justify-end">
+        
         <div className="flex items-center gap-2 bg-emerald-500/5 border border-emerald-500/20 rounded-full px-4 py-1.5">
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
           <span className="font-orbitron text-[10px] text-emerald-400 tracking-widest uppercase">Live Data</span>
@@ -272,30 +285,38 @@ export default function SchedulerPage() {
                 <h3 className="font-cinzel text-sm text-white font-bold tracking-wider">ACTIVE CONSTRAINTS</h3>
               </div>
               <div className="flex-grow overflow-y-auto pr-2 space-y-3 z-10">
-                {CONSTRAINTS.map((c, i) => {
-                  const styles = {
+                {activeConstraints.map((c, i) => {
+                  const styles: Record<string, string> = {
                     peak: "bg-red-950/20 border-red-900/30 border-l-red-500",
                     warning: "bg-yellow-950/20 border-yellow-900/30 border-l-yellow-500",
                     vip: "bg-black/40 border-white/5 border-l-purple-500",
                     system: "bg-black/40 border-white/5 border-l-gray-500",
+                    incident: "bg-orange-950/20 border-orange-900/30 border-l-orange-500",
+                    manual: "bg-blue-950/20 border-blue-900/30 border-l-blue-500",
                   };
-                  const textColors = {
+                  const textColors: Record<string, any> = {
                     peak: { time: "text-red-300", label: "text-red-400", desc: "text-gray-400" },
                     warning: { time: "text-yellow-300", label: "text-yellow-500", desc: "text-gray-400" },
                     vip: { time: "text-purple-300", label: "text-purple-400", desc: "text-gray-500" },
                     system: { time: "text-gray-300", label: "text-gray-400", desc: "text-gray-500" },
+                    incident: { time: "text-orange-300", label: "text-orange-400", desc: "text-gray-400" },
+                    manual: { time: "text-blue-300", label: "text-blue-400", desc: "text-gray-400" },
                   };
-                  const tc = textColors[c.type];
+                  const typeKey = Object.keys(styles).includes(c.constraint_type) ? c.constraint_type : "system";
+                  const tc = textColors[typeKey];
                   return (
-                    <div key={i} className={`p-3 border rounded-lg border-l-2 ${styles[c.type]}`}>
+                    <div key={i} className={`p-3 border rounded-lg border-l-2 ${styles[typeKey]}`}>
                       <div className="flex justify-between items-start mb-1">
-                        <span className={`text-xs font-orbitron font-bold tracking-wider ${tc.time}`}>{c.start} - {c.end}</span>
-                        <span className={`text-[9px] font-bold uppercase tracking-widest ${tc.label}`}>{c.label}</span>
+                        <span className={`text-xs font-orbitron font-bold tracking-wider ${tc.time}`}>{c.start_time?.substring(0,5)} - {c.end_time?.substring(0,5)}</span>
+                        <span className={`text-[9px] font-bold uppercase tracking-widest ${tc.label}`}>{c.constraint_type}</span>
                       </div>
-                      <p className={`text-[10px] ${tc.desc}`}>{c.desc}</p>
+                      <p className={`text-[10px] ${tc.desc}`}>{c.name}</p>
                     </div>
                   );
                 })}
+                {activeConstraints.length === 0 && (
+                  <div className="text-xs text-gray-500 text-center py-4">No active constraints.</div>
+                )}
               </div>
               <button onClick={() => setBlockModal(true)}
                 className="w-full mt-4 py-3 bg-white/5 hover:bg-white/10 border border-white/20 text-white text-[10px] uppercase tracking-widest font-bold rounded transition flex items-center justify-center gap-2 z-10">
@@ -430,20 +451,41 @@ export default function SchedulerPage() {
               <h3 className="font-cinzel text-lg text-white font-bold tracking-wider">Block Time Slot</h3>
               <button onClick={() => setBlockModal(false)} className="text-gray-400 hover:text-white transition"><X className="w-5 h-5" /></button>
             </div>
-            <form onSubmit={(e) => { e.preventDefault(); setBlockModal(false); showToast("✅ Slot constraint applied successfully."); }} className="space-y-5">
+            <form onSubmit={async (e) => {
+              e.preventDefault();
+              const formData = new FormData(e.currentTarget);
+              const payload = {
+                name: formData.get("notes") as string,
+                constraint_type: formData.get("constraint_type") as string,
+                start_time: formData.get("start_time") as string,
+                end_time: formData.get("end_time") as string,
+                applies_to_date: selectedDate,
+                notes: formData.get("notes") as string
+              };
+              startTransition(async () => {
+                try {
+                  await createSlotConstraintAction(payload);
+                  setBlockModal(false);
+                  showToast("✅ Slot constraint applied successfully.");
+                  fetchActiveConstraintsAction(selectedDate).then(setActiveConstraints);
+                } catch (err: any) {
+                  showToast("❌ Error: " + err.message);
+                }
+              });
+            }} className="space-y-5">
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[10px] text-gray-400 uppercase tracking-widest mb-1">Start Time</label>
-                  <input type="time" required className="w-full bg-black/50 border border-white/20 text-white px-3 py-2.5 rounded text-sm focus:outline-none focus:border-[#d4af37] transition-colors" style={{ colorScheme: "dark" }} />
+                  <input type="time" name="start_time" required className="w-full bg-black/50 border border-white/20 text-white px-3 py-2.5 rounded text-sm focus:outline-none focus:border-[#d4af37] transition-colors" style={{ colorScheme: "dark" }} />
                 </div>
                 <div>
                   <label className="block text-[10px] text-gray-400 uppercase tracking-widest mb-1">End Time</label>
-                  <input type="time" required className="w-full bg-black/50 border border-white/20 text-white px-3 py-2.5 rounded text-sm focus:outline-none focus:border-[#d4af37] transition-colors" style={{ colorScheme: "dark" }} />
+                  <input type="time" name="end_time" required className="w-full bg-black/50 border border-white/20 text-white px-3 py-2.5 rounded text-sm focus:outline-none focus:border-[#d4af37] transition-colors" style={{ colorScheme: "dark" }} />
                 </div>
               </div>
               <div>
                 <label className="block text-[10px] text-gray-400 uppercase tracking-widest mb-1">Constraint Type</label>
-                <select required className="w-full bg-black/50 border border-white/20 text-white px-3 py-2.5 rounded text-sm focus:outline-none focus:border-[#d4af37] cursor-pointer">
+                <select name="constraint_type" required className="w-full bg-black/50 border border-white/20 text-white px-3 py-2.5 rounded text-sm focus:outline-none focus:border-[#d4af37] cursor-pointer">
                   <option value="system">System Maintenance</option>
                   <option value="vip">VIP Private Booking</option>
                   <option value="incident">Operational Incident</option>
@@ -452,12 +494,14 @@ export default function SchedulerPage() {
               </div>
               <div>
                 <label className="block text-[10px] text-gray-400 uppercase tracking-widest mb-1">Reason / Notes</label>
-                <textarea required placeholder="Enter brief details for the operations log..."
+                <textarea name="notes" required placeholder="Enter brief details for the operations log..."
                   className="w-full bg-black/50 border border-white/20 text-white px-3 py-2.5 rounded text-sm focus:outline-none focus:border-[#d4af37] resize-none h-20 transition-colors" />
               </div>
               <div className="flex gap-3 pt-4 border-t border-white/10">
                 <button type="button" onClick={() => setBlockModal(false)} className="flex-1 py-3 text-xs text-gray-400 hover:text-white uppercase tracking-widest transition">Cancel</button>
-                <button type="submit" className="flex-1 py-3 bg-[#d4af37] text-black font-bold text-xs uppercase tracking-widest rounded hover:bg-white transition shadow-[0_0_15px_rgba(212,175,55,0.3)]">Apply Block</button>
+                <button type="submit" disabled={isPending} className="flex-1 py-3 bg-[#d4af37] text-black font-bold text-xs uppercase tracking-widest rounded hover:bg-white transition shadow-[0_0_15px_rgba(212,175,55,0.3)] disabled:opacity-50">
+                  {isPending ? "Applying..." : "Apply Block"}
+                </button>
               </div>
             </form>
           </div>

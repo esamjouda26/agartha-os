@@ -161,13 +161,8 @@ export default function DemandForecastClient({ forecasts }: { forecasts: Forecas
   return (
     <div className="space-y-5 pb-10">
       {/* ═══ HEADER ═══ */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="font-cinzel text-xl text-[#d4af37] flex items-center tracking-wider">
-            <BarChart3 className="w-6 h-6 mr-3" /> Demand Forecasts
-          </h3>
-          <p className="text-xs text-gray-400 mt-1 uppercase tracking-widest">30-Day Forward Capacity View</p>
-        </div>
+      <div className="flex items-center justify-end">
+        
         {/* Inline Legend */}
         <div className="glass-panel rounded-lg px-4 py-2 flex items-center space-x-5 text-[11px] font-mono text-gray-400">
           <div className="flex items-center space-x-2">

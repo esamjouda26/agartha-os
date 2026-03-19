@@ -80,6 +80,91 @@ export async function fetchIncidentsAction({ page = 1, pageSize = 20 }: Paginati
   return { data: (data ?? []) as Record<string, unknown>[], total: count ?? 0, page, pageSize };
 }
 
+// ── Scheduler & Constraints ────────────────────────────────────────────────
+
+export async function fetchActiveConstraintsAction(date: string) {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("operational_constraints")
+    .select("*")
+    .eq("applies_to_date", date)
+    .eq("is_active", true)
+    .order("start_time");
+
+  return data ?? [];
+}
+
+export async function createSlotConstraintAction(payload: { 
+  name: string; 
+  constraint_type: string; 
+  start_time: string; 
+  end_time: string; 
+  applies_to_date: string; 
+  notes?: string; 
+}) {
+  const user = await requireRole("management");
+  if (!user) throw new Error("Unauthorized");
+  
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("operational_constraints").insert([{
+    name: payload.name,
+    constraint_type: payload.constraint_type,
+    start_time: payload.start_time,
+    end_time: payload.end_time,
+    applies_to_date: payload.applies_to_date,
+    notes: payload.notes || null,
+    is_active: true,
+    created_by: user.id
+  }]).select().single();
+
+  if (error) throw new Error(error.message);
+  revalidatePath("/management/scheduler");
+  return { success: true, data };
+}
+
+export async function fetchMonthlyForecastAction(year: number, month: number, experienceId?: string) {
+  const supabase = await createClient();
+  // Construct first and last day of the given month (month is 0-indexed in JS, so we add 1 for Postgres Date construction)
+  const startDate = `${year}-${String(month + 1).padStart(2, '0')}-01`;
+  const endDate = new Date(year, month + 1, 0).toISOString().split('T')[0];
+
+  let query = supabase
+    .from("time_slots")
+    .select("slot_date, booked_count, override_capacity, experiences(capacity_per_slot)")
+    .gte("slot_date", startDate)
+    .lte("slot_date", endDate);
+    
+  if (experienceId) {
+    query = query.eq("experience_id", experienceId);
+  }
+
+  const { data, error } = await query;
+  if (error || !data) return [];
+  
+  // Aggregate data by day
+  const dailyLoads = new Map<string, { total_booked: number, total_cap: number }>();
+  for (const row of data) {
+    const d = row.slot_date;
+    const baseCap = (row.experiences as any)?.capacity_per_slot ?? 0;
+    const cap = row.override_capacity ?? baseCap;
+    
+    if (!dailyLoads.has(d)) dailyLoads.set(d, { total_booked: 0, total_cap: 0 });
+    const acc = dailyLoads.get(d)!;
+    acc.total_booked += row.booked_count;
+    acc.total_cap += cap;
+  }
+  
+  const result: { date: string, utilization: number }[] = [];
+  dailyLoads.forEach((stats, date) => {
+    result.push({
+      date,
+      utilization: stats.total_cap > 0 ? (stats.total_booked / stats.total_cap) * 100 : 0
+    });
+  });
+  
+  return result;
+}
+
 // ── Timeline Batch Generator ────────────────────────────────────────────────
 
 export async function generateTimeSlotsAction(params: {

@@ -129,9 +129,8 @@ export default function CrewDeploymentPage() {
   return (
     <div className="space-y-5">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="flex flex-col md:flex-row md:items-center justify-end gap-4">
         <div>
-          <h1 className="text-xl font-bold text-gradient">Tactical Crew Deployment</h1>
           <p className="text-xs text-muted-foreground mt-1 uppercase tracking-widest">
             Resolved daily schedule — operational overrides only
           </p>

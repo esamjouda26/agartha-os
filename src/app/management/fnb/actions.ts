@@ -4,13 +4,15 @@ import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 
 export async function createMenuItemAction(payload: {
+  id?: string;
   name: string;
   category: string;
-  location: string;
   unit_price: number;
-  cost_price: number;
-  status: string;
+  is_active: boolean;
+  description: string | null;
+  image_url: string | null;
   allergens: string[] | null;
+  linked_product_id?: string | null;
   recipeItems: { ingredientId: string; qty: number }[];
 }) {
   const supabase = await createClient();
@@ -25,32 +27,71 @@ export async function createMenuItemAction(payload: {
     return { error: "FORBIDDEN - You do not have permission to modify the F&B catalog." };
   }
 
-  // 2. Insert Base Item
-  const { data: menuItem, error: itemError } = await supabase
-    .from("fnb_menu_items")
-    .insert({
-      name: payload.name,
-      menu_category: payload.category,
-      unit_price: payload.unit_price,
-      cost_price: payload.cost_price,
-      status: payload.status,
-    } as any)
-    .select("id")
-    .single();
+  // 2. Upsert Base Item
+  let menuItemId = payload.id;
+  const isVirtual = menuItemId?.startsWith('virtual-');
 
-  if (itemError || !menuItem) {
-    console.error("Failed to insert menu item:", itemError);
-    return { error: itemError?.message || "Failed to create core menu item." };
+  if (isVirtual || !menuItemId) {
+    // Insert new
+    const { data: menuItem, error: itemError } = await supabase
+      .from("fnb_menu_items")
+      .insert({
+        name: payload.name,
+        menu_category: payload.category,
+        unit_price: payload.unit_price,
+        is_active: payload.is_active,
+        description: payload.description,
+        image_url: payload.image_url,
+        allergens: payload.allergens,
+        linked_product_id: payload.linked_product_id || null,
+      } as any)
+      .select("id")
+      .single();
+
+    if (itemError || !menuItem) {
+      console.error("Failed to insert menu item:", itemError);
+      return { error: itemError?.message || "Failed to create core menu item." };
+    }
+    menuItemId = (menuItem as any).id;
+  } else {
+    // Update existing
+    const { error: itemError } = await supabase
+      .from("fnb_menu_items")
+      .update({
+        name: payload.name,
+        menu_category: payload.category,
+        unit_price: payload.unit_price,
+        is_active: payload.is_active,
+        description: payload.description,
+        image_url: payload.image_url,
+        allergens: payload.allergens,
+        linked_product_id: payload.linked_product_id || null,
+      } as any)
+      .eq("id", menuItemId);
+
+    if (itemError) {
+      console.error("Failed to update menu item:", itemError);
+      return { error: itemError.message };
+    }
+    
+    // Clear old recipe items if updating
+    await supabase.from("fnb_recipes").delete().eq("menu_item_id", menuItemId);
   }
 
   // 3. Atomically Insert Bill of Materials (BOM) / Recipe
   if (payload.recipeItems.length > 0) {
-    const recipePayload = payload.recipeItems.map(ri => ({
-      menu_item_id: (menuItem as any).id,
-      product_id: ri.ingredientId,
-      quantity_required: ri.qty,
-      unit: "unit"
-    }));
+    const productIds = payload.recipeItems.map(ri => ri.ingredientId);
+    const { data: products } = await supabase.from("products").select("id, unit_of_measure").in("id", productIds);
+
+    const recipePayload = payload.recipeItems.map(ri => {
+      const p = products?.find(prod => prod.id === ri.ingredientId);
+      return {
+        menu_item_id: menuItemId,
+        product_id: ri.ingredientId,
+        quantity_required: ri.qty,
+        unit: p?.unit_of_measure || "unit"
+      };
+    });
 
     const { error: recipeError } = await supabase
       .from("fnb_recipes")
@@ -58,7 +99,7 @@ export async function createMenuItemAction(payload: {
 
     if (recipeError) {
       console.error("Failed to insert recipe BOM:", recipeError);
-      return { error: "Item created, but failed to save Bill of Materials." };
+      return { error: `BOM failed: ${recipeError.message || JSON.stringify(recipeError)}` };
     }
   }
 
