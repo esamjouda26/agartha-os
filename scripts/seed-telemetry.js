@@ -1,5 +1,7 @@
 const fs = require('fs');
-const env = fs.readFileSync('c:/Users/jouda/Desktop/AgarthaOS/agartha-os/.env.local', 'utf8')
+const path = require('path');
+const envPath = path.resolve(__dirname, '..', '.env.local');
+const env = fs.readFileSync(envPath, 'utf8')
   .split('\n')
   .reduce((acc, line) => {
     const i = line.indexOf('=');
