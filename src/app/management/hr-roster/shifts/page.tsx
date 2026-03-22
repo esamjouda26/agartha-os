@@ -5,6 +5,7 @@ import {
   CalendarClock, PlusCircle, Clock, X, ChevronLeft, ChevronRight,
   ChevronDown, Radio, Table2, CheckCircle2,
 } from "lucide-react";
+import { StatusBadge } from "@/components/shared";
 
 // ── Types & Data ────────────────────────────────────────────────────────────
 
@@ -231,9 +232,16 @@ export default function ShiftSchedulingPage() {
                           return (
                             <td key={day} className="px-1 py-1.5 text-center relative">
                               <div onClick={() => setActiveCell(isActive ? null : { empId: emp.id, day })}
-                                className={`min-w-[52px] h-[30px] rounded cursor-pointer flex items-center justify-center text-[10px] font-bold uppercase tracking-wide border transition-all hover:scale-105 hover:border-[rgba(212,175,55,0.4)] ${sd ? "" : "bg-white/[0.02] text-gray-600 border-white/5"}`}
-                                style={sd ? { background: sd.color + "18", color: sd.color, borderColor: sd.color + "20" } : undefined}>
-                                {sd ? sd.code : "OFF"}
+                                className={`min-w-[52px] h-[30px] rounded cursor-pointer flex items-center justify-center text-[10px] font-bold uppercase tracking-wide border transition-all hover:scale-105 hover:border-[rgba(212,175,55,0.4)] ${sd ? "shadow-[0_0_8px_rgba(0,0,0,0.3)]" : "bg-white/[0.02] text-gray-600 border-dashed border-white/5"}`}
+                                style={sd ? { background: sd.color + "18", color: sd.color, borderColor: sd.color + "30", boxShadow: `0 0 8px ${sd.color}15` } : undefined}>
+                                {sd ? (
+                                  <span className="flex items-center gap-1">
+                                    <span className="w-1.5 h-1.5 rounded-full" style={{ background: sd.color }} />
+                                    {sd.code}
+                                  </span>
+                                ) : (
+                                  <span className="opacity-40">OFF</span>
+                                )}
                               </div>
                               {isActive && (
                                 <div className="absolute top-full left-1/2 -translate-x-1/2 z-40 bg-[rgba(10,20,30,0.97)] border border-white/12 rounded-md min-w-[140px] max-h-[220px] overflow-y-auto shadow-lg mt-1" onClick={(e) => e.stopPropagation()}>
@@ -378,9 +386,11 @@ export default function ShiftSchedulingPage() {
                             </td>
                             {/* Source */}
                             <td className="px-3 py-2 text-center">
-                              <span className={`text-[9px] uppercase tracking-wider font-bold px-2 py-0.5 rounded ${hasShiftOv || hasRoleOv ? "text-amber-400 bg-amber-500/10" : "text-gray-500"}`}>
-                                {hasShiftOv || hasRoleOv ? "Override" : "Default"}
-                              </span>
+                              {hasShiftOv || hasRoleOv ? (
+                                <StatusBadge status="override" label="Override" />
+                              ) : (
+                                <StatusBadge status="scheduled" label="Default" />
+                              )}
                             </td>
                           </tr>
                         );

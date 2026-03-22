@@ -1,5 +1,7 @@
 import { fetchStaffRecordsAction } from "./actions";
 import HrRosterClient from "./hr-roster-client";
+import { Users, UserCheck, CalendarOff, Clock } from "lucide-react";
+import { KpiCard } from "@/components/shared";
 
 export const metadata = {
   title: "HR Roster - AgarthaOS",
@@ -29,6 +31,12 @@ export default async function HrRosterPage() {
     status: r.employment_status,
   }));
 
+  // Compute KPI stats from live data
+  const totalStaff = mappedRecords.length;
+  const activeCount = mappedRecords.filter((r: any) => r.status === "active").length;
+  const onLeaveCount = mappedRecords.filter((r: any) => r.status === "on_leave").length;
+  const pendingCount = mappedRecords.filter((r: any) => r.status === "pending" || r.status === "probation").length;
+
   return (
     <div className="flex-1 p-6 md:p-10 font-sans relative z-10 space-y-8 animate-in fade-in duration-500">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
@@ -41,7 +49,38 @@ export default async function HrRosterPage() {
           </p>
         </div>
       </div>
-      
+
+      {/* KPI Dashboard Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <KpiCard
+          title="Total Staff"
+          value={totalStaff}
+          icon={Users}
+          subtitle="All registered personnel"
+        />
+        <KpiCard
+          title="Active"
+          value={activeCount}
+          icon={UserCheck}
+          variant="success"
+          subtitle={`${totalStaff > 0 ? Math.round((activeCount / totalStaff) * 100) : 0}% of roster`}
+        />
+        <KpiCard
+          title="On Leave"
+          value={onLeaveCount}
+          icon={CalendarOff}
+          variant="warning"
+          subtitle="Currently away"
+        />
+        <KpiCard
+          title="Pending"
+          value={pendingCount}
+          icon={Clock}
+          variant={pendingCount > 0 ? "danger" : "default"}
+          subtitle="Awaiting onboarding"
+        />
+      </div>
+
       <HrRosterClient initialEmployees={mappedRecords} />
     </div>
   );

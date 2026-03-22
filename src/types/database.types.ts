@@ -2531,6 +2531,186 @@ export type Database = {
           },
         ]
       }
+      report_runs: {
+        Row: {
+          id: string
+          report_name: string
+          metric: string
+          timeframe: string
+          granularity: string
+          export_format: string
+          status: string
+          row_count: number | null
+          file_url: string | null
+          requested_by: string | null
+          created_at: string
+          completed_at: string | null
+        }
+        Insert: {
+          id?: string
+          report_name: string
+          metric: string
+          timeframe: string
+          granularity?: string
+          export_format?: string
+          status?: string
+          row_count?: number | null
+          file_url?: string | null
+          requested_by?: string | null
+          created_at?: string
+          completed_at?: string | null
+        }
+        Update: {
+          id?: string
+          report_name?: string
+          metric?: string
+          timeframe?: string
+          granularity?: string
+          export_format?: string
+          status?: string
+          row_count?: number | null
+          file_url?: string | null
+          requested_by?: string | null
+          created_at?: string
+          completed_at?: string | null
+        }
+        Relationships: []
+      }
+      report_schedules: {
+        Row: {
+          id: string
+          report_name: string
+          schedule_cron: string
+          recipients: string[]
+          metric: string
+          timeframe: string
+          export_format: string
+          is_active: boolean
+          last_run_at: string | null
+          next_run_at: string | null
+          created_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          report_name: string
+          schedule_cron: string
+          recipients?: string[]
+          metric: string
+          timeframe?: string
+          export_format?: string
+          is_active?: boolean
+          last_run_at?: string | null
+          next_run_at?: string | null
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          report_name?: string
+          schedule_cron?: string
+          recipients?: string[]
+          metric?: string
+          timeframe?: string
+          export_format?: string
+          is_active?: boolean
+          last_run_at?: string | null
+          next_run_at?: string | null
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      survey_responses: {
+        Row: {
+          id: string
+          booking_id: string | null
+          guest_id: string | null
+          survey_type: string
+          overall_score: number | null
+          nps_score: number | null
+          sentiment: string | null
+          keywords: string[] | null
+          feedback_text: string | null
+          channel: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          booking_id?: string | null
+          guest_id?: string | null
+          survey_type: string
+          overall_score?: number | null
+          nps_score?: number | null
+          sentiment?: string | null
+          keywords?: string[] | null
+          feedback_text?: string | null
+          channel?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          booking_id?: string | null
+          guest_id?: string | null
+          survey_type?: string
+          overall_score?: number | null
+          nps_score?: number | null
+          sentiment?: string | null
+          keywords?: string[] | null
+          feedback_text?: string | null
+          channel?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "survey_responses_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "survey_responses_guest_id_fkey"
+            columns: ["guest_id"]
+            isOneToOne: false
+            referencedRelation: "guest_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      system_metrics: {
+        Row: {
+          id: string
+          metric_name: string
+          metric_value: number
+          unit: string
+          source: string
+          tags: Record<string, unknown> | null
+          recorded_at: string
+        }
+        Insert: {
+          id?: string
+          metric_name: string
+          metric_value: number
+          unit?: string
+          source?: string
+          tags?: Record<string, unknown> | null
+          recorded_at?: string
+        }
+        Update: {
+          id?: string
+          metric_name?: string
+          metric_value?: number
+          unit?: string
+          source?: string
+          tags?: Record<string, unknown> | null
+          recorded_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

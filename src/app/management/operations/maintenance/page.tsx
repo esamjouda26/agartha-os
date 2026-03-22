@@ -4,7 +4,9 @@ import { useState, useEffect, useCallback, useTransition, useOptimistic } from "
 import {
   ShieldAlert, Activity, Clock, Archive, Plus, X, Globe, HardHat,
   AlertTriangle, Send, Power, CheckCircle2, ArrowDownUp, Edit2, XCircle,
+  Wrench, Timer, ClipboardCheck,
 } from "lucide-react";
+import { StatusBadge, KpiCard } from "@/components/shared";
 import {
   fetchMaintenanceWorkOrdersAction,
   createWorkOrderAction,
@@ -191,6 +193,22 @@ export default function MaintenancePage() {
         <div className="flex items-center justify-center py-16"><div className="w-6 h-6 border-2 border-[#d4af37] border-t-transparent rounded-full animate-spin" /></div>
       ) : (
         <div className="space-y-8">
+          {/* ═══ KPI SUMMARY ═══ */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <KpiCard title="Live Sessions" value={liveWos.length} icon={Activity}
+              variant={liveWos.length > 3 ? "danger" : liveWos.length > 0 ? "warning" : "default"}
+              subtitle="Active MAB sessions" />
+            <KpiCard title="Dispatch Queue" value={queueWos.length} icon={Timer}
+              variant={queueWos.length > 5 ? "warning" : "default"}
+              subtitle="Awaiting window" />
+            <KpiCard title="Completed (24H)" value={recentWos.filter(w => w.status === "completed").length} icon={ClipboardCheck}
+              variant="success"
+              subtitle="Successfully closed" />
+            <KpiCard title="Revoked (24H)" value={recentWos.filter(w => w.status === "revoked").length} icon={Wrench}
+              variant={recentWos.filter(w => w.status === "revoked").length > 0 ? "danger" : "default"}
+              subtitle="Sessions killed" />
+          </div>
+
           {/* ═══ SECTION A: LIVE SESSIONS ═══ */}
           <section className="glass-panel rounded-lg p-6 relative overflow-hidden">
             <div className="absolute top-0 left-0 w-1 h-full bg-red-500 shadow-[0_0_15px_#ef4444] animate-pulse" />
@@ -291,7 +309,7 @@ export default function MaintenancePage() {
                       <td className="py-3 px-4 font-mono text-[10px]">{formatDt(wo.scheduled_start)}</td>
                       <td className="py-3 px-4 font-mono text-[10px]">{wo.mab_limit_hours * 60}m</td>
                       <td className="py-3 px-4">
-                        <span className="bg-amber-500/20 text-amber-400 border border-amber-500/30 px-2 py-0.5 rounded text-[9px] uppercase tracking-widest">Awaiting Window</span>
+                        <StatusBadge status="pending_mac" />
                       </td>
                       <td className="py-3 px-4 text-right">
                         <div className="flex justify-end gap-2">

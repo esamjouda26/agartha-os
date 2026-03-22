@@ -401,6 +401,144 @@ export async function approveIamRequestAction(requestId: string, note?: string) 
   return { success: true, newStatus };
 }
 
+// ─── Report Run Persistence ────────────────────────────────────────────────
+export async function saveReportRunAction(run: {
+  report_name: string;
+  metric: string;
+  timeframe: string;
+  granularity: string;
+  export_format: string;
+  row_count: number;
+  status: "completed" | "failed";
+}) {
+  "use server";
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated" };
+
+  const { error } = await supabase.from("report_runs").insert({
+    ...run,
+    requested_by: user.id,
+    completed_at: new Date().toISOString(),
+  });
+  if (error) return { error: error.message };
+  return { success: true };
+}
+
+export async function fetchReportRunsAction() {
+  "use server";
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("report_runs")
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(20);
+  if (error) return [];
+  return data;
+}
+
+// ─── Survey / CSAT Stats ───────────────────────────────────────────────────
+export type SurveyStats = {
+  avgCsat: number;
+  csatTrend: { month: string; score: number }[];
+  sentimentBreakdown: { positive: number; neutral: number; negative: number };
+  topKeywords: string[];
+  totalResponses: number;
+};
+
+export async function fetchSurveyStatsAction(filter = "ytd"): Promise<SurveyStats | null> {
+  "use server";
+  const supabase = await createClient();
+  const range = getDateRange(filter);
+
+  const { data, error } = await supabase
+    .from("survey_responses")
+    .select("*")
+    .gte("created_at", range.from)
+    .lte("created_at", range.to);
+
+  if (error || !data || data.length === 0) return null;
+
+  // Calculate stats from raw data
+  const scores = data.filter(d => d.overall_score != null);
+  const avgCsat = scores.length > 0
+    ? scores.reduce((s, d) => s + (d.overall_score ?? 0), 0) / scores.length
+    : 0;
+
+  const sentiments = data.filter(d => d.sentiment);
+  const sentimentBreakdown = {
+    positive: sentiments.filter(d => d.sentiment === "positive").length,
+    neutral: sentiments.filter(d => d.sentiment === "neutral").length,
+    negative: sentiments.filter(d => d.sentiment === "negative").length,
+  };
+
+  // Aggregate keywords
+  const kwMap = new Map<string, number>();
+  data.forEach(d => {
+    (d.keywords ?? []).forEach((kw: string) => kwMap.set(kw, (kwMap.get(kw) ?? 0) + 1));
+  });
+  const topKeywords = [...kwMap.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 8)
+    .map(([kw]) => kw);
+
+  // Monthly CSAT trend
+  const monthMap = new Map<string, { sum: number; count: number }>();
+  scores.forEach(d => {
+    const m = d.created_at.slice(0, 7); // YYYY-MM
+    const entry = monthMap.get(m) ?? { sum: 0, count: 0 };
+    entry.sum += d.overall_score ?? 0;
+    entry.count += 1;
+    monthMap.set(m, entry);
+  });
+  const csatTrend = [...monthMap.entries()]
+    .sort()
+    .map(([month, { sum, count }]) => ({ month, score: +(sum / count).toFixed(1) }));
+
+  return { avgCsat: +avgCsat.toFixed(1), csatTrend, sentimentBreakdown, topKeywords, totalResponses: data.length };
+}
+
+// ─── System Health Metrics ─────────────────────────────────────────────────
+export type SystemHealthStats = {
+  metrics: { name: string; value: number; unit: string; history: number[] }[];
+  lastUpdated: string;
+};
+
+export async function fetchSystemMetricsAction(): Promise<SystemHealthStats> {
+  "use server";
+  const supabase = await createClient();
+  const since = new Date(Date.now() - 60 * 60 * 1000).toISOString(); // last hour
+
+  const { data, error } = await supabase
+    .from("system_metrics")
+    .select("*")
+    .gte("recorded_at", since)
+    .order("recorded_at", { ascending: true });
+
+  if (error || !data || data.length === 0) {
+    return { metrics: [], lastUpdated: new Date().toISOString() };
+  }
+
+  // Group by metric_name, get latest value and history
+  const grouped = new Map<string, typeof data>();
+  data.forEach(d => {
+    const arr = grouped.get(d.metric_name) ?? [];
+    arr.push(d);
+    grouped.set(d.metric_name, arr);
+  });
+
+  const metrics = [...grouped.entries()].map(([name, records]) => ({
+    name,
+    value: records[records.length - 1].metric_value,
+    unit: records[records.length - 1].unit,
+    history: records.map(r => r.metric_value),
+  }));
+
+  return { metrics, lastUpdated: data[data.length - 1].recorded_at };
+}
+
+// ── IAM Requests ─────────────────────────────────────────────────────────────
+
 export async function rejectIamRequestAction(requestId: string) {
   const caller = await requireRole("admin");
   if (!caller) return { success: false, error: "FORBIDDEN" };

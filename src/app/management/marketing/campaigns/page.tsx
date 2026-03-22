@@ -1,6 +1,7 @@
 import { TrendingUp, DollarSign, CreditCard, RefreshCw, Target, Activity, Radio, Link2, Users, ArrowUpDown } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { toggleCampaignStatusAction } from "../actions";
+import { EfficiencyChart, AudienceBreakdownChart, CampaignPerformanceChart } from "./campaign-charts-client";
 
 /* ── Types ─────────────────────────────────────────────────────────── */
 interface CampaignRow {
@@ -117,34 +118,8 @@ export default async function MarketingCampaignPage() {
       {/* ═══ Efficiency Chart + Active Campaigns Grid ═══ */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         {/* Efficiency Curve (2/3 width) */}
-        <div className="xl:col-span-2 glass-panel p-5 rounded-lg flex flex-col min-h-[400px]">
-          <div className="flex items-center justify-between mb-6 flex-shrink-0">
-            <h4 className="text-xs text-gray-400 uppercase tracking-widest font-semibold flex items-center">
-              <Activity className="w-4 h-4 mr-2 text-[#d4af37]" /> Efficiency Curve (Spend vs CAC)
-            </h4>
-            <div className="flex bg-[#020408] rounded border border-white/10 p-0.5">
-              {["D", "W", "M"].map((label, idx) => (
-                <button
-                  key={label}
-                  className={`w-7 h-6 flex items-center justify-center text-xs font-medium rounded transition-all ${
-                    idx === 0
-                      ? "font-bold bg-[#d4af37]/10 text-[#d4af37] shadow-[0_0_8px_rgba(212,175,55,0.3)] border border-[#d4af37]/40"
-                      : "text-gray-500 hover:text-gray-300"
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
-          {/* // TODO: Integrate Chart.js or a React charting library for the efficiency curve */}
-          <div className="flex-1 flex items-center justify-center text-gray-500 text-sm italic border border-dashed border-white/10 rounded-lg">
-            <div className="text-center">
-              <Activity className="w-10 h-10 mx-auto mb-3 text-gray-600" />
-              <p>Efficiency chart requires Chart.js integration</p>
-              <p className="text-xs text-gray-600 mt-1">Spend vs CAC dual-axis (bar + line)</p>
-            </div>
-          </div>
+        <div className="xl:col-span-2">
+          <EfficiencyChart />
         </div>
 
         {/* Active Campaigns Grid (1/3 width) */}
@@ -260,28 +235,14 @@ export default async function MarketingCampaignPage() {
           </div>
 
           {/* Audience Breakdown Chart */}
-          <div className="glass-panel p-5 rounded-lg flex flex-col">
-            <div className="flex items-center justify-between mb-6">
-              <h4 className="text-xs text-gray-400 uppercase tracking-widest font-semibold flex items-center">
-                <Users className="w-4 h-4 mr-2 text-[#d4af37]" /> Audience Breakdown by Campaign
-              </h4>
-              <select className="bg-[#020408]/60 border border-white/10 text-xs text-gray-300 rounded-md px-3 py-1.5 pr-8 focus:outline-none focus:border-[#d4af37]/50 cursor-pointer">
-                <option value="tier">Tier Performance</option>
-                <option value="group">Group Composition</option>
-                <option value="demographics">Demographics</option>
-              </select>
-            </div>
-            {/* // TODO: Integrate Chart.js or a React charting library for audience breakdown */}
-            <div className="flex-1 flex items-center justify-center text-gray-500 text-sm italic border border-dashed border-white/10 rounded-lg min-h-[300px]">
-              <div className="text-center">
-                <Users className="w-10 h-10 mx-auto mb-3 text-gray-600" />
-                <p>Audience chart requires Chart.js integration</p>
-                <p className="text-xs text-gray-600 mt-1">Stacked bar — Tier / Group / Demographics</p>
-              </div>
-            </div>
-          </div>
+          <AudienceBreakdownChart />
         </div>
       </section>
+
+      {/* ═══ Campaign Performance Line Chart ═══ */}
+      {campaigns.length > 0 && (
+        <CampaignPerformanceChart campaigns={campaigns.map(c => ({ name: c.name, impressions: c.impressions, clicks: c.clicks }))} />
+      )}
 
       {/* ═══ Full Campaign Performance Table ═══ */}
       <section>

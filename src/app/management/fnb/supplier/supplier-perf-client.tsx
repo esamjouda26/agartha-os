@@ -3,6 +3,18 @@
 import { useState, useMemo } from "react";
 import { Truck, Search, FileBarChart2, Calendar, CheckCircle2, AlertCircle, AlertTriangle, FileText } from "lucide-react";
 import type { SupplierPerfRow } from "./page";
+import { ChartContainer } from "@/components/shared";
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Tooltip,
+  Legend,
+} from "chart.js";
+import { Bar } from "react-chartjs-2";
+
+ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip, Legend);
 
 /* ── Enriched type (synthetic yield data) ───────────────────────────── */
 interface EnrichedSupplier {
@@ -106,6 +118,63 @@ export default function SupplierPerfClient({ suppliers }: { suppliers: SupplierP
           <h4 className="font-orbitron text-3xl font-bold text-red-400">{criticalCount}</h4>
           <p className="text-[10px] text-gray-500 mt-1">&lt; 85% Yield Detected</p>
         </div>
+      </section>
+
+      {/* Supplier Yield Bar Chart */}
+      <section>
+        <ChartContainer title="SUPPLIER YIELD SCORES" subtitle="Usable yield % by supplier (color-coded by status)">
+          <div style={{ height: Math.max(280, enriched.length * 36) }}>
+            <Bar
+              data={{
+                labels: enriched.map((s) => s.name.length > 20 ? s.name.slice(0, 18) + "…" : s.name),
+                datasets: [{
+                  label: "Usable Yield %",
+                  data: enriched.map((s) => s.yield),
+                  backgroundColor: enriched.map((s) =>
+                    s.status === "optimal" ? "rgba(16,185,129,0.75)" :
+                    s.status === "warning" ? "rgba(212,175,55,0.75)" :
+                    "rgba(239,68,68,0.75)"
+                  ),
+                  borderColor: enriched.map((s) =>
+                    s.status === "optimal" ? "#10b981" :
+                    s.status === "warning" ? "#d4af37" :
+                    "#ef4444"
+                  ),
+                  borderWidth: 1,
+                  borderRadius: 3,
+                }],
+              }}
+              options={{
+                indexAxis: "y" as const,
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                  legend: { display: false },
+                  tooltip: {
+                    backgroundColor: "#1a1a2e",
+                    titleColor: "#d4af37",
+                    bodyColor: "#e5e7eb",
+                    borderColor: "#d4af37",
+                    borderWidth: 1,
+                    callbacks: { label: (ctx) => ` Yield: ${ctx.parsed.x}%` },
+                  },
+                },
+                scales: {
+                  x: {
+                    grid: { color: "rgba(255,255,255,0.05)" },
+                    ticks: { color: "#6b7280", font: { size: 10 }, callback: (v) => `${v}%` },
+                    min: 50,
+                    max: 100,
+                  },
+                  y: {
+                    grid: { display: false },
+                    ticks: { color: "#6b7280", font: { size: 10 } },
+                  },
+                },
+              }}
+            />
+          </div>
+        </ChartContainer>
       </section>
 
       {/* Data Table */}

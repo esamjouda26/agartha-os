@@ -1,10 +1,12 @@
 "use client";
 
 import { useState, useEffect, useCallback, useOptimistic, useTransition } from "react";
+import { Users, UserCheck, UserMinus, Shield, MapPin } from "lucide-react";
 import {
   fetchCrewForDeploymentAction,
   assignCrewToZoneAction,
 } from "../../operations/actions";
+import { KpiCard, StatusBadge } from "@/components/shared";
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -171,18 +173,11 @@ export default function CrewDeploymentPage() {
 
       {/* Summary Stats */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        {[
-          { label: "Total Crew", value: totalCrew, cls: "" },
-          { label: "On Shift", value: onShift, cls: "text-emerald-400" },
-          { label: "Off Duty", value: offDuty, cls: "text-muted-foreground" },
-          { label: "Managers", value: mgrCount, cls: "text-primary" },
-          { label: "Zone Assigned", value: assignedCount, cls: "text-amber-400" },
-        ].map((s, i) => (
-          <div key={i} className="bg-background/40 border border-border/50 rounded-lg px-4 py-3">
-            <p className="text-[10px] text-muted-foreground uppercase tracking-widest mb-0.5">{s.label}</p>
-            <p className={`text-xl font-bold ${s.cls || "text-foreground"}`}>{s.value}</p>
-          </div>
-        ))}
+        <KpiCard title="Total Crew" value={totalCrew} icon={Users} />
+        <KpiCard title="On Shift" value={onShift} icon={UserCheck} variant="success" subtitle={`${totalCrew > 0 ? Math.round((onShift / totalCrew) * 100) : 0}% deployed`} />
+        <KpiCard title="Off Duty" value={offDuty} icon={UserMinus} subtitle="Not rostered" />
+        <KpiCard title="Managers" value={mgrCount} icon={Shield} subtitle="Oversight only" />
+        <KpiCard title="Zone Assigned" value={assignedCount} icon={MapPin} variant={assignedCount < onShift ? "warning" : "success"} subtitle={`${onShift > 0 ? Math.round((assignedCount / onShift) * 100) : 0}% of on-shift`} />
       </div>
 
       {/* Data Grid */}
@@ -316,11 +311,11 @@ function GroupRows({
             {/* Shift */}
             <td className="px-3 py-2.5 text-center">
               {empShift ? (
-                <span className="inline-flex items-center justify-center min-w-[80px] h-[24px] rounded text-[10px] font-bold bg-accent/10 text-accent border border-accent/20">
-                  {formatTime(empShift.start_time)}–{formatTime(empShift.end_time)}
+                <span className="inline-flex items-center gap-1.5">
+                  <StatusBadge status="active" label={`${formatTime(empShift.start_time)}–${formatTime(empShift.end_time)}`} />
                 </span>
               ) : (
-                <span className="text-[10px] text-muted-foreground/40">OFF</span>
+                <StatusBadge status="offline" label="OFF" />
               )}
             </td>
 

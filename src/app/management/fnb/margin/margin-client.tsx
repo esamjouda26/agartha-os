@@ -3,6 +3,20 @@
 import { useState, useMemo } from "react";
 import { PieChart, Search, DownloadCloud, CheckCircle2, TrendingDown, AlertTriangle, MoreHorizontal, Calendar } from "lucide-react";
 import type { MarginRow } from "./page";
+import { ChartContainer } from "@/components/shared";
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  LineElement,
+  PointElement,
+  Tooltip,
+  Legend,
+} from "chart.js";
+import { Line, Bar } from "react-chartjs-2";
+
+ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, Tooltip, Legend);
 
 /* ── Helpers ────────────────────────────────────────────────────────── */
 function healthStatus(target: number, actual: number): { label: string; cls: string; bgRow: string; icon: typeof CheckCircle2; actionLabel?: string; actionCls?: string } {
@@ -83,6 +97,98 @@ export default function MarginClient({ items }: { items: MarginRow[] }) {
           <p className="text-xs text-gray-400 uppercase tracking-widest mb-1">Items Flagged Critical</p>
           <h4 className="font-orbitron text-3xl font-bold text-white">{criticalCount}</h4>
         </div>
+      </section>
+
+      {/* ═══ Charts Row ═══ */}
+      <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Margin Trend Line Chart */}
+        <ChartContainer title="MARGIN TREND" subtitle="Blended margin over time (mock)" timeToggle>
+          <div className="h-64">
+            <Line
+              data={{
+                labels: ["Week 1", "Week 2", "Week 3", "Week 4", "Week 5", "Week 6", "Week 7", "Week 8"],
+                datasets: [
+                  {
+                    label: "Target Margin %",
+                    data: [65, 65, 65, 65, 65, 65, 65, 65],
+                    borderColor: "#d4af37",
+                    backgroundColor: "rgba(212,175,55,0.1)",
+                    borderDash: [6, 4],
+                    pointRadius: 0,
+                    borderWidth: 2,
+                    fill: false,
+                    tension: 0,
+                  },
+                  {
+                    label: "Actual Margin %",
+                    data: [62.1, 59.8, 61.3, 57.2, 60.5, 58.9, 63.1, blendedActual],
+                    borderColor: "#10b981",
+                    backgroundColor: "rgba(16,185,129,0.1)",
+                    pointBackgroundColor: "#10b981",
+                    pointBorderColor: "#10b981",
+                    pointRadius: 4,
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.3,
+                  },
+                ],
+              }}
+              options={{
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                  legend: { labels: { color: "#6b7280", font: { size: 11 } } },
+                  tooltip: { backgroundColor: "#1a1a2e", titleColor: "#d4af37", bodyColor: "#e5e7eb", borderColor: "#d4af37", borderWidth: 1 },
+                },
+                scales: {
+                  x: { grid: { color: "rgba(255,255,255,0.05)" }, ticks: { color: "#6b7280", font: { size: 10 } } },
+                  y: { grid: { color: "rgba(255,255,255,0.05)" }, ticks: { color: "#6b7280", font: { size: 10 }, callback: (v) => `${v}%` }, min: 40, max: 80 },
+                },
+              }}
+            />
+          </div>
+        </ChartContainer>
+
+        {/* Revenue vs COGS Bar Chart */}
+        <ChartContainer title="REVENUE vs COGS" subtitle="Per-item comparison (top 10 by revenue)">
+          <div className="h-64">
+            <Bar
+              data={{
+                labels: filtered.slice(0, 10).map((r) => r.name.length > 14 ? r.name.slice(0, 12) + "…" : r.name),
+                datasets: [
+                  {
+                    label: "Revenue (RM)",
+                    data: filtered.slice(0, 10).map((r) => +(r.sell * r.itemsSold).toFixed(2)),
+                    backgroundColor: "rgba(212,175,55,0.7)",
+                    borderColor: "#d4af37",
+                    borderWidth: 1,
+                    borderRadius: 3,
+                  },
+                  {
+                    label: "COGS (RM)",
+                    data: filtered.slice(0, 10).map((r) => +(r.cost * r.itemsSold).toFixed(2)),
+                    backgroundColor: "rgba(128,107,69,0.7)",
+                    borderColor: "#806b45",
+                    borderWidth: 1,
+                    borderRadius: 3,
+                  },
+                ],
+              }}
+              options={{
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                  legend: { labels: { color: "#6b7280", font: { size: 11 } } },
+                  tooltip: { backgroundColor: "#1a1a2e", titleColor: "#d4af37", bodyColor: "#e5e7eb", borderColor: "#d4af37", borderWidth: 1 },
+                },
+                scales: {
+                  x: { grid: { color: "rgba(255,255,255,0.05)" }, ticks: { color: "#6b7280", font: { size: 9 }, maxRotation: 45 } },
+                  y: { grid: { color: "rgba(255,255,255,0.05)" }, ticks: { color: "#6b7280", font: { size: 10 }, callback: (v) => `RM ${v}` } },
+                },
+              }}
+            />
+          </div>
+        </ChartContainer>
       </section>
 
       {/* ═══ Per-Item Margin Table ═══ */}

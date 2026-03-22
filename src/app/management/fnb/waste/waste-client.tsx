@@ -4,6 +4,16 @@ import { useState, useMemo, useTransition } from "react";
 import { Trash2, Search, DownloadCloud, Calendar, Clock, AlertTriangle, Droplet, MoreHorizontal, Plus, X, CheckCircle2 } from "lucide-react";
 import type { WasteRow } from "./page";
 import { submitWasteLogAction } from "../actions";
+import { ChartContainer } from "@/components/shared";
+import {
+  Chart as ChartJS,
+  ArcElement,
+  Tooltip,
+  Legend,
+} from "chart.js";
+import { Doughnut } from "react-chartjs-2";
+
+ChartJS.register(ArcElement, Tooltip, Legend);
 
 /* ── Reason styling ─────────────────────────────────────────────────── */
 const REASON_MAP: Record<string, { icon: typeof Clock; cls: string; label: string }> = {
@@ -117,6 +127,89 @@ export default function WasteClient({ wasteLogs, menuItems, locations }: { waste
           <p className="text-xs text-gray-400 uppercase tracking-widest mb-1">Items Logged</p>
           <h4 className="font-orbitron text-3xl font-bold text-white">{logs.length}</h4>
         </div>
+      </section>
+
+      {/* Waste Breakdown Doughnut */}
+      <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <ChartContainer title="WASTE BY REASON" subtitle="Cost impact breakdown by reason code">
+          <div className="h-72 flex items-center justify-center">
+            <Doughnut
+              data={{
+                labels: [
+                  REASON_MAP.expired?.label ?? "Expired / EOD",
+                  REASON_MAP.dropped?.label ?? "Dropped / Spilled",
+                  REASON_MAP.supplier?.label ?? "Poor Supplier Quality",
+                  REASON_MAP.prep_error?.label ?? "Prep Error",
+                ],
+                datasets: [{
+                  data: [
+                    reasonCounts["expired"] ?? 0,
+                    reasonCounts["dropped"] ?? 0,
+                    reasonCounts["supplier"] ?? 0,
+                    reasonCounts["prep_error"] ?? 0,
+                  ],
+                  backgroundColor: [
+                    "rgba(234,179,8,0.75)",
+                    "rgba(251,146,60,0.75)",
+                    "rgba(239,68,68,0.75)",
+                    "rgba(168,85,247,0.75)",
+                  ],
+                  borderColor: [
+                    "#eab308",
+                    "#fb923c",
+                    "#ef4444",
+                    "#a855f7",
+                  ],
+                  borderWidth: 2,
+                  hoverOffset: 8,
+                }],
+              }}
+              options={{
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: "60%",
+                plugins: {
+                  legend: {
+                    position: "right" as const,
+                    labels: { color: "#6b7280", font: { size: 11 }, padding: 16, usePointStyle: true, pointStyleWidth: 10 },
+                  },
+                  tooltip: {
+                    backgroundColor: "#1a1a2e",
+                    titleColor: "#d4af37",
+                    bodyColor: "#e5e7eb",
+                    borderColor: "#d4af37",
+                    borderWidth: 1,
+                    callbacks: { label: (ctx) => ` RM ${(ctx.parsed ?? 0).toFixed(2)}` },
+                  },
+                },
+              }}
+            />
+          </div>
+        </ChartContainer>
+
+        {/* Summary Stats Card */}
+        <ChartContainer title="WASTE SUMMARY" subtitle="Key waste metrics at a glance">
+          <div className="h-72 flex flex-col justify-center space-y-4 px-2">
+            {Object.entries(reasonCounts).sort(([,a],[,b]) => b - a).map(([reason, cost]) => {
+              const r = REASON_MAP[reason] ?? { label: reason, cls: "text-gray-400" };
+              const pct = totalLoss > 0 ? (cost / totalLoss) * 100 : 0;
+              return (
+                <div key={reason}>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className={`text-xs font-semibold uppercase tracking-wider ${r.cls.split(' ')[0]}`}>{r.label}</span>
+                    <span className="text-xs font-mono text-gray-400">RM {cost.toFixed(2)} ({pct.toFixed(0)}%)</span>
+                  </div>
+                  <div className="w-full h-2 rounded-full bg-white/5 overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all"
+                      style={{ width: `${pct}%`, backgroundColor: reason === "expired" ? "#eab308" : reason === "dropped" ? "#fb923c" : reason === "supplier" ? "#ef4444" : "#a855f7" }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </ChartContainer>
       </section>
 
       {/* Data Table */}

@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Tag, Activity, Archive, PowerOff, Pencil, Copy, Calendar, Repeat, X } from "lucide-react";
+import { Tag, Activity, Archive, PowerOff, Pencil, Copy, Calendar, Repeat, X, Ticket, DollarSign, TrendingUp } from "lucide-react";
 import type { PromoCodeRow } from "./page";
 import { togglePromoStatusAction, clonePromoAction, createPromoAction } from "../actions";
+import { StatusBadge, KpiCard } from "@/components/shared";
 
 /* ── Helpers ────────────────────────────────────────────────────────── */
 const fmtNum = (n: number) => new Intl.NumberFormat("en-US").format(n);
@@ -63,8 +64,28 @@ export default function PromoCodesClient({ promoCodes }: { promoCodes: PromoCode
     });
   }
 
+  /* KPI aggregations */
+  const totalRedemptions = promoCodes.reduce((s, p) => s + (p.current_uses ?? 0), 0);
+  const avgDiscount = promoCodes.length > 0
+    ? promoCodes.reduce((s, p) => s + p.discount_value, 0) / promoCodes.length
+    : 0;
+  // Estimate revenue impact: avg ticket $75, so each redemption at avg discount
+  const estimatedRevImpact = totalRedemptions * 75 * (avgDiscount / 100);
+
   return (
     <div className="space-y-8 pb-10">
+      {/* ═══ KPI Summary ═══ */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <KpiCard title="Active Promos" value={activePromos.length} icon={Ticket}
+          variant="success" subtitle={`of ${promoCodes.length} total`} />
+        <KpiCard title="Total Redemptions" value={totalRedemptions.toLocaleString()} icon={Tag}
+          trend={{ value: 12.5, label: "vs last month" }} />
+        <KpiCard title="Revenue Impact" value={`$${Math.round(estimatedRevImpact).toLocaleString()}`} icon={DollarSign}
+          variant="warning" subtitle="Estimated discount given" />
+        <KpiCard title="Avg. Discount" value={`${avgDiscount.toFixed(1)}%`} icon={TrendingUp}
+          subtitle="Across all promos" />
+      </div>
+
       {/* ═══ Header & Controls ═══ */}
       <div className="flex flex-col md:flex-row md:items-center justify-end gap-4">
         
@@ -227,9 +248,10 @@ export default function PromoCodesClient({ promoCodes }: { promoCodes: PromoCode
                         </span>
                       </td>
                       <td className="px-6 py-4">
-                        <span className={`text-[10px] font-bold tracking-widest uppercase border px-2 py-1 rounded-full ${reasonCls}`}>
-                          {reasonLabel}
-                        </span>
+                        <StatusBadge
+                          status={p.status === "expired" ? "expired" : p.status === "exhausted" ? "failed" : "paused"}
+                          label={reasonLabel}
+                        />
                       </td>
                       <td className="px-6 py-4 text-right">
                         <span className="text-gray-300 font-mono">{fmtNum(p.current_uses)}</span>

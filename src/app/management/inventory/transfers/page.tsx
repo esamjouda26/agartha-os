@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useTransition } from "react";
 import {
-  ArrowLeftRight, Search, Activity, Clock, Package, Zap, Truck, History, X, ArrowRight, ChevronLeft, ChevronRight, CheckCircle2, Eye,
+  ArrowLeftRight, Search, Activity, Clock, Package, Zap, Truck, History, X, ArrowRight, ChevronLeft, ChevronRight, CheckCircle2, Eye, MoveRight,
 } from "lucide-react";
 import {
   fetchStockLocationsAction,
@@ -14,6 +14,7 @@ import {
   fetchRunnersAction,
 } from "../actions";
 import DomainAuditTable from "@/components/DomainAuditTable";
+import { StatusBadge, FilterChips, KpiCard } from "@/components/shared";
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -42,14 +43,6 @@ interface LedgerEntry {
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
-
-const STATUS_BADGE: Record<string, string> = {
-  draft: "bg-gray-500/10 text-gray-400 border-gray-500/20",
-  pending: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
-  in_transit: "bg-blue-500/10 text-blue-400 border-blue-500/20",
-  completed: "bg-green-500/10 text-green-400 border-green-500/20",
-  cancelled: "bg-red-500/10 text-red-400 border-red-500/20",
-};
 
 function timeAgo(iso: string) {
   const ms = Date.now() - new Date(iso).getTime();
@@ -283,22 +276,9 @@ export default function TransfersPage() {
         </div>
 
         <div className="flex gap-3">
-          {[
-            { label: "Items Tracked", value: products.length, icon: Package, color: "text-blue-400" },
-            { label: "Replenishments Needed", value: totalReplenishments, icon: Zap, color: "text-yellow-400" },
-            { label: "Active Tickets", value: activeTickets, icon: Truck, color: "text-green-400" },
-          ].map((kpi) => {
-            const Icon = kpi.icon;
-            return (
-              <div key={kpi.label} className="glass-panel px-4 py-2 rounded flex items-center gap-3">
-                <Icon className={`w-5 h-5 ${kpi.color}`} />
-                <div>
-                  <p className="text-[9px] text-gray-500 uppercase tracking-widest">{kpi.label}</p>
-                  <p className={`text-lg font-orbitron font-bold ${kpi.color}`}>{kpi.value}</p>
-                </div>
-              </div>
-            );
-          })}
+          <KpiCard title="Items Tracked" value={products.length} icon={Package} className="px-4 py-2" />
+          <KpiCard title="Replenishments Needed" value={totalReplenishments} icon={Zap} variant="warning" className="px-4 py-2" />
+          <KpiCard title="Active Tickets" value={activeTickets} icon={Truck} variant="success" className="px-4 py-2" />
         </div>
       </div>
 
@@ -411,15 +391,18 @@ export default function TransfersPage() {
                 <input type="text" placeholder="Search Transfer ID or Location..." value={historySearch} onChange={(e) => setHistorySearch(e.target.value)}
                   className="w-full bg-[#020408] border border-white/10 text-sm text-white rounded-md pl-10 pr-4 py-2 focus:outline-none focus:border-[rgba(212,175,55,0.5)] transition-all" />
               </div>
-              <select value={historyStatus} onChange={(e) => setHistoryStatus(e.target.value)}
-                className="bg-[#020408] border border-white/10 text-xs text-gray-300 rounded-md px-3 py-2 pr-8 focus:outline-none focus:border-[rgba(212,175,55,0.5)] cursor-pointer appearance-none">
-                <option value="all">Status: All</option>
-                <option value="draft">Draft</option>
-                <option value="pending">Pending</option>
-                <option value="in_transit">In Transit</option>
-                <option value="completed">Completed</option>
-                <option value="cancelled">Cancelled</option>
-              </select>
+              <FilterChips
+                options={[
+                  { value: "all", label: "All" },
+                  { value: "draft", label: "Draft" },
+                  { value: "pending", label: "Pending" },
+                  { value: "in_transit", label: "In Transit" },
+                  { value: "completed", label: "Completed" },
+                  { value: "cancelled", label: "Cancelled" },
+                ]}
+                value={historyStatus}
+                onChange={setHistoryStatus}
+              />
             </div>
 
             <div className="overflow-x-auto flex-1">
@@ -443,7 +426,6 @@ export default function TransfersPage() {
                   </thead>
                   <tbody className="divide-y divide-white/5 text-xs">
                     {filteredHistory.map((t) => {
-                      const statusCls = STATUS_BADGE[t.status] ?? STATUS_BADGE.draft;
                       const itemsDesc = t.inventory_transfer_items?.map(
                         (item: { products?: { name: string }; quantity: number }) => `${item.products?.name ?? "Item"} (×${item.quantity})`
                       ).join(", ") || "—";
@@ -452,16 +434,19 @@ export default function TransfersPage() {
                           <td className="px-5 py-4 text-[#d4af37] font-semibold font-mono">{t.id.slice(0, 8)}…</td>
                           <td className="px-5 py-4 text-gray-400">{timeAgo(t.created_at)}</td>
                           <td className="px-5 py-4">
-                            <span className="text-gray-300">{t.source?.name ?? "—"}</span>
-                            <ArrowRight className="w-3 h-3 inline mx-2 text-gray-500" />
-                            <span className={t.dest && !t.dest.can_hold_inventory ? "text-blue-400" : "text-gray-300"}>{t.dest?.name ?? "—"}</span>
+                            <div className="inline-flex items-center gap-2">
+                              <span className="px-2 py-0.5 rounded bg-white/5 border border-white/10 text-gray-300 text-xs font-semibold">{t.source?.name ?? "—"}</span>
+                              <MoveRight className="w-4 h-4 text-[#d4af37] flex-shrink-0" />
+                              <span className={`px-2 py-0.5 rounded text-xs font-semibold ${t.dest && !t.dest.can_hold_inventory ? "bg-blue-500/10 border border-blue-500/20 text-blue-400" : "bg-white/5 border border-white/10 text-gray-300"}`}>{t.dest?.name ?? "—"}</span>
+                            </div>
                           </td>
                           <td className="px-5 py-4 text-gray-300 max-w-xs truncate">{itemsDesc}</td>
                           <td className="px-5 py-4 text-gray-400">{t.assigned_runner_id ? t.assigned_runner_id.slice(0, 8) + "…" : "Direct Issue"}</td>
                           <td className="px-5 py-4">
-                            <span className={`text-[10px] border px-2 py-1 rounded font-bold uppercase tracking-widest ${statusCls}`}>
-                              {t.status.replace(/_/g, " ")}
-                            </span>
+                            <StatusBadge
+                              status={t.status === "pending" ? "pending_runner" : t.status as any}
+                              label={t.status === "pending" ? "Pending Runner" : undefined}
+                            />
                           </td>
                           <td className="px-5 py-4 text-right flex justify-end gap-2">
                             {t.status !== "completed" && t.status !== "cancelled" && (

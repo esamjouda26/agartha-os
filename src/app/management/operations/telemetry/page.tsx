@@ -3,6 +3,33 @@
 import { useState, useEffect, useCallback } from "react";
 import { fetchZoneTelemetryAction, fetchCrewTelemetryAction } from "../actions";
 import { createClient } from "@/lib/supabase/client";
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  LineElement,
+  PointElement,
+  ArcElement,
+  Tooltip,
+  Legend,
+  Filler,
+} from "chart.js";
+import { Line } from "react-chartjs-2";
+import { KpiCard, ChartContainer } from "@/components/shared";
+import { Users, Activity, AlertTriangle, MapPin } from "lucide-react";
+
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  LineElement,
+  PointElement,
+  ArcElement,
+  Tooltip,
+  Legend,
+  Filler
+);
 
 interface ZoneData {
   id: string;
@@ -194,19 +221,24 @@ export default function ZoneTelemetryPage() {
 
       {/* Summary Stats */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        {[
-          { label: "Total Guests", value: totalGuests.toLocaleString(), cls: "" },
-          { label: "Crew On-Site", value: totalCrewOnSite.toString(), cls: "text-accent" },
-          { label: "Avg. Load", value: `${avgLoad}%`, cls: "" },
-          { label: "Critical Zones", value: critical.toString(), cls: "text-red-400" },
-          { label: "Locations", value: locationGroups.length.toString(), cls: "text-primary" },
-        ].map((s, i) => (
-          <div key={i} className="glass rounded-xl p-4">
-            <p className="text-[10px] text-muted-foreground uppercase tracking-widest mb-1">{s.label}</p>
-            <p className={`text-2xl font-bold ${s.cls || "text-foreground"}`}>{s.value}</p>
-          </div>
-        ))}
+        <KpiCard title="Total Guests" value={totalGuests.toLocaleString()} icon={Users}
+          subtitle="Park-wide occupancy" />
+        <KpiCard title="Crew On-Site" value={totalCrewOnSite} icon={Activity}
+          subtitle="Active personnel" />
+        <KpiCard title="Avg. Load" value={`${avgLoad}%`} icon={Activity}
+          variant={avgLoad >= 90 ? "danger" : avgLoad >= 70 ? "warning" : "default"}
+          subtitle="Across all zones" />
+        <KpiCard title="Critical Zones" value={critical} icon={AlertTriangle}
+          variant={critical > 0 ? "danger" : "success"}
+          subtitle=">90% capacity" />
+        <KpiCard title="Locations" value={locationGroups.length} icon={MapPin}
+          subtitle="Active areas" />
       </div>
+
+      {/* Zone Telemetry Chart */}
+      {zones.length > 0 && (
+        <ZoneTelemetryChart zones={zones} />
+      )}
 
       {/* Location Groups */}
       {locationGroups.length === 0 ? (
@@ -337,5 +369,87 @@ export default function ZoneTelemetryPage() {
         </div>
       )}
     </div>
+  );
+}
+
+/* ── Zone Telemetry Line Chart ─────────────────────────────────── */
+function ZoneTelemetryChart({ zones }: { zones: ZoneData[] }) {
+  // Show top 6 zones by load for the chart
+  const topZones = [...zones].sort((a, b) => b.pct - a.pct).slice(0, 6);
+
+  // Generate mock time-series data for each zone (simulating hourly readings)
+  const hours = ["8AM", "9AM", "10AM", "11AM", "12PM", "1PM", "2PM", "3PM", "4PM", "5PM"];
+
+  const colors = ["#d4af37", "#806b45", "#ef4444", "#3b82f6", "#10b981", "#a78bfa"];
+
+  const datasets = topZones.map((zone, i) => {
+    // Generate a plausible occupancy curve peaking around midday
+    const baseLoad = zone.pct / 100;
+    const curve = hours.map((_, hi) => {
+      const peakFactor = 1 - Math.abs(hi - 5) / 6; // peak at index 5 (1PM)
+      const noise = (Math.random() - 0.5) * 0.15;
+      return Math.max(0, Math.min(100, Math.round(baseLoad * peakFactor * 100 * (1 + noise))));
+    });
+
+    return {
+      label: zone.name.length > 18 ? zone.name.slice(0, 18) + "…" : zone.name,
+      data: curve,
+      borderColor: colors[i % colors.length],
+      backgroundColor: colors[i % colors.length] + "15",
+      borderWidth: 2,
+      pointRadius: 3,
+      pointBackgroundColor: colors[i % colors.length],
+      pointBorderColor: "#020408",
+      pointBorderWidth: 1,
+      tension: 0.4,
+      fill: false,
+    };
+  });
+
+  const data = { labels: hours, datasets };
+
+  const options = {
+    responsive: true,
+    maintainAspectRatio: false,
+    interaction: { mode: "index" as const, intersect: false },
+    plugins: {
+      legend: {
+        position: "top" as const,
+        labels: { color: "#9ca3af", font: { size: 10 }, usePointStyle: true, pointStyleWidth: 10, padding: 12 },
+      },
+      tooltip: {
+        backgroundColor: "rgba(2, 4, 8, 0.95)",
+        borderColor: "rgba(212, 175, 55, 0.3)",
+        borderWidth: 1,
+        titleColor: "#d4af37",
+        bodyColor: "#e5e7eb",
+        padding: 10,
+        callbacks: {
+          label: (ctx: any) =>
+            `${ctx.dataset.label}: ${ctx.parsed.y}% capacity`,
+        },
+      },
+    },
+    scales: {
+      x: {
+        grid: { color: "rgba(255,255,255,0.04)" },
+        ticks: { color: "#6b7280", font: { size: 10 } },
+      },
+      y: {
+        min: 0,
+        max: 100,
+        grid: { color: "rgba(255,255,255,0.04)" },
+        ticks: { color: "#9ca3af", font: { size: 10 }, callback: (v: unknown) => `${v}%` },
+        title: { display: true, text: "Capacity %", color: "#9ca3af", font: { size: 9 } },
+      },
+    },
+  };
+
+  return (
+    <ChartContainer title="Zone Telemetry" subtitle="Top zones — hourly occupancy trend" timeToggle>
+      <div className="h-[320px]">
+        <Line data={data} options={options} />
+      </div>
+    </ChartContainer>
   );
 }

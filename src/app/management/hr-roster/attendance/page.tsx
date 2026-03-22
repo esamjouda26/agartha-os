@@ -6,6 +6,7 @@ import {
   ChevronDown, Eye, ThumbsUp, ThumbsDown, X, FileCheck, MessageSquare,
   Filter,
 } from "lucide-react";
+import { StatusBadge, TimeRangeSelector, FilterChips, KpiCard } from "@/components/shared";
 
 // ── Types & Data ────────────────────────────────────────────────────────────
 
@@ -86,6 +87,8 @@ export default function AttendanceCompliancePage() {
   const [ledgerFilter, setLedgerFilter] = useState<"all" | "compliant" | "flagged" | "critical">("all");
   const [collapsedRoles, setCollapsedRoles] = useState<Set<string>>(new Set());
   const [toast, setToast] = useState<string | null>(null);
+  const [timeRange, setTimeRange] = useState("mtd");
+  const [anomalyFilter, setAnomalyFilter] = useState("all");
 
   // Modals
   const [rejectModal, setRejectModal] = useState<LeaveRequest | null>(null);
@@ -156,34 +159,37 @@ export default function AttendanceCompliancePage() {
 
   return (
     <div className="space-y-5 pb-10">
-      {/* ── Header ──────────────────────────────────────────────── */}
-      <div className="flex flex-col md:flex-row md:items-center justify-end gap-4">
-        
-        <div className="flex items-center gap-2">
-          <select className="bg-[#020408] border border-white/10 text-sm text-gray-400 rounded-md px-3 py-2 focus:outline-none focus:border-[rgba(212,175,55,0.5)] cursor-pointer appearance-none">
-            <option>March 2026</option>
-            <option>February 2026</option>
-            <option>January 2026</option>
-          </select>
-        </div>
+      {/* ── Header with TimeRangeSelector ───────────────────────── */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <TimeRangeSelector
+          value={timeRange}
+          onChange={setTimeRange}
+          options={[
+            { value: "today", label: "Today" },
+            { value: "7d", label: "7D" },
+            { value: "mtd", label: "MTD" },
+            { value: "ytd", label: "YTD" },
+          ]}
+        />
+        <FilterChips
+          value={anomalyFilter}
+          onChange={setAnomalyFilter}
+          options={[
+            { value: "all", label: "All Anomalies" },
+            { value: "late_arrival", label: "Late Arrivals" },
+            { value: "early_departure", label: "Early Departures" },
+            { value: "missing_checkout", label: "Missing Checkout" },
+            { value: "unauthorized_absence", label: "Unauthorized Absence" },
+          ]}
+        />
       </div>
 
       {/* ── Summary Cards ────────────────────────────────────────── */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        {[
-          { label: "Total Active Staff", val: stats.total, icon: <Users className="w-5 h-5" />, color: "text-sky-400", bg: "bg-sky-500/10 border-sky-500/20" },
-          { label: "Fully Compliant", val: stats.compliant, icon: <CheckCircle2 className="w-5 h-5" />, color: "text-green-400", bg: "bg-green-500/10 border-green-500/20" },
-          { label: "Flagged Employees", val: stats.flagged, icon: <AlertTriangle className="w-5 h-5" />, color: "text-amber-400", bg: "bg-amber-500/10 border-amber-500/20" },
-          { label: "Pending Leave", val: stats.pendingLeave, icon: <CalendarOff className="w-5 h-5" />, color: "text-fuchsia-400", bg: "bg-fuchsia-500/10 border-fuchsia-500/20" },
-        ].map((c) => (
-          <div key={c.label} className={`glass-panel rounded-lg p-4 border ${c.bg}`}>
-            <div className="flex items-center justify-between mb-2">
-              <span className={`${c.color} opacity-60`}>{c.icon}</span>
-            </div>
-            <div className={`text-2xl font-bold ${c.color}`}>{c.val}</div>
-            <div className="text-[10px] text-gray-500 uppercase tracking-widest mt-1">{c.label}</div>
-          </div>
-        ))}
+        <KpiCard title="Total Active Staff" value={stats.total} icon={Users} />
+        <KpiCard title="Fully Compliant" value={stats.compliant} icon={CheckCircle2} variant="success" />
+        <KpiCard title="Flagged Employees" value={stats.flagged} icon={AlertTriangle} variant="warning" />
+        <KpiCard title="Pending Leave" value={stats.pendingLeave} icon={CalendarOff} variant={stats.pendingLeave > 0 ? "danger" : "default"} />
       </div>
 
       {/* ── Aggregate Row ────────────────────────────────────────── */}
@@ -210,15 +216,16 @@ export default function AttendanceCompliancePage() {
           <h4 className="text-[10px] text-gray-500 uppercase tracking-widest font-semibold flex items-center gap-2">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Master Compliance Ledger
           </h4>
-          <div className="flex items-center gap-1">
-            <Filter className="w-3 h-3 text-gray-500 mr-1" />
-            {(["all", "compliant", "flagged", "critical"] as const).map((f) => (
-              <button key={f} onClick={() => setLedgerFilter(f)}
-                className={`px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider rounded transition-all ${ledgerFilter === f ? "text-[#d4af37] bg-[rgba(212,175,55,0.1)] border border-[rgba(212,175,55,0.3)]" : "text-gray-500 hover:text-[#d4af37]"}`}>
-                {f}
-              </button>
-            ))}
-          </div>
+          <FilterChips
+            value={ledgerFilter}
+            onChange={(v) => setLedgerFilter(v as typeof ledgerFilter)}
+            options={[
+              { value: "all", label: "All" },
+              { value: "compliant", label: "Compliant" },
+              { value: "flagged", label: "Flagged" },
+              { value: "critical", label: "Critical" },
+            ]}
+          />
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
@@ -260,7 +267,7 @@ export default function AttendanceCompliancePage() {
                         <span className={`text-xs font-bold tabular-nums ${r.complianceRate >= 98 ? "text-green-400" : r.complianceRate >= 95 ? "text-amber-400" : "text-red-400"}`}>{r.complianceRate}%</span>
                       </td>
                       <td className="px-3 py-2">
-                        <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${statusBadge(r.status)}`}>{r.status}</span>
+                        <StatusBadge status={r.status} />
                       </td>
                       <td className="px-3 py-2">
                         <button onClick={() => setDetailModal(r)} className="text-gray-500 hover:text-[#d4af37] transition-colors p-1"><Eye className="w-3.5 h-3.5" /></button>
@@ -292,7 +299,7 @@ export default function AttendanceCompliancePage() {
                     <div className="flex items-center gap-2 mb-1 flex-wrap">
                       <span className="text-xs text-white font-medium">{lr.empName}</span>
                       <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${LEAVE_TYPE_COLOR[lr.type]}`}>{LEAVE_TYPE_LABELS[lr.type]}</span>
-                      {lr.status !== "pending" && <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border ${lr.status === "approved" ? "text-green-400 bg-green-500/10 border-green-500/20" : "text-red-400 bg-red-500/10 border-red-500/20"}`}>{lr.status}</span>}
+                      {lr.status !== "pending" && <StatusBadge status={lr.status === "approved" ? "completed" : "failed"} label={lr.status === "approved" ? "Approved" : "Rejected"} />}
                     </div>
                     <div className="text-[10px] text-gray-500 font-mono">{lr.startDate} → {lr.endDate}</div>
                     <div className="text-xs text-gray-400 mt-1">{lr.reason}</div>
@@ -318,14 +325,14 @@ export default function AttendanceCompliancePage() {
             </h4>
           </div>
           <div className="divide-y divide-white/5 max-h-[400px] overflow-y-auto">
-            {discrepancies.length === 0 ? <p className="text-center text-gray-600 text-xs py-8 italic">No discrepancies.</p> : discrepancies.map((d) => (
+            {discrepancies.length === 0 ? <p className="text-center text-gray-600 text-xs py-8 italic">No discrepancies.</p> : discrepancies.filter((d) => anomalyFilter === "all" || d.type === anomalyFilter).map((d) => (
               <div key={d.id} className="px-5 py-3.5 hover:bg-white/[0.02] transition-colors">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1 flex-wrap">
                       <span className="text-xs text-white font-medium">{d.empName}</span>
                       <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${DISCREP_TYPE_COLOR[d.type]}`}>{DISCREP_TYPE_LABELS[d.type]}</span>
-                      {d.status !== "unresolved" && <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border ${d.status === "justified" ? "text-green-400 bg-green-500/10 border-green-500/20" : "text-blue-400 bg-blue-500/10 border-blue-500/20"}`}>{d.status}</span>}
+                      {d.status !== "unresolved" && <StatusBadge status={d.status as "justified" | "overridden"} />}
                     </div>
                     <div className="text-[10px] text-gray-500 font-mono">{d.date}</div>
                     <div className="text-xs text-gray-400 mt-1">{d.detail}</div>

@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { fetchStockLocationsAction, fetchRunnersAction, fetchAuditsAction, fetchAuditItemsAction, reconcileAuditAction } from "../actions";
 import DomainAuditTable from "@/components/DomainAuditTable";
+import { StatusBadge, KpiCard, FilterChips } from "@/components/shared";
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -26,20 +27,14 @@ interface ReconItem {
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
-function statusBadge(status: string) {
-  const map: Record<string, { cls: string; icon: typeof Calendar; label: string }> = {
-    "Needs Reconciliation": { cls: "text-yellow-400 bg-yellow-400/10 border-yellow-500/20", icon: AlertTriangle, label: "Needs Recon" },
-    "Active": { cls: "text-blue-400 bg-blue-400/10 border-blue-500/20", icon: Activity, label: "Counting" },
-    "Scheduled": { cls: "text-gray-400 bg-gray-500/10 border-gray-500/20", icon: Calendar, label: "Scheduled" },
-    "Closed": { cls: "text-green-400 bg-green-400/10 border-green-500/20", icon: CheckCircle2, label: "Closed" },
+function mapAuditStatus(status: string): "scheduled" | "active" | "needs_reconciliation" | "closed" {
+  const map: Record<string, "scheduled" | "active" | "needs_reconciliation" | "closed"> = {
+    "Scheduled": "scheduled",
+    "Active": "active",
+    "Needs Reconciliation": "needs_reconciliation",
+    "Closed": "closed",
   };
-  const s = map[status] ?? map["Scheduled"];
-  const Icon = s.icon;
-  return (
-    <span className={`px-2 py-1 rounded border text-[10px] uppercase font-bold font-sans tracking-widest flex items-center w-fit ${s.cls}`}>
-      <Icon className="w-3 h-3 mr-1" /> {s.label}
-    </span>
-  );
+  return map[status] ?? "scheduled";
 }
 
 // ── Page ────────────────────────────────────────────────────────────────────
@@ -168,27 +163,10 @@ export default function InventoryAuditsPage() {
 
       {/* ── KPI Cards ───────────────────────────────────────────── */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {[
-          { label: "Scheduled", value: kpiScheduled, icon: Calendar, color: "gray", val: "text-white", border: "border-gray-500/50" },
-          { label: "Active (Counting)", value: kpiActive, icon: Activity, color: "blue", val: "text-blue-400", border: "border-blue-500/50" },
-          { label: "Needs Recon", value: kpiRecon, icon: AlertTriangle, color: "yellow", val: "text-yellow-400", border: "border-yellow-500/50" },
-          { label: "Variance Impact (MTD)", value: `- RM ${Math.abs(kpiVariance).toFixed(2)}`, icon: TrendingDown, color: "red", val: "text-red-400", border: "border-red-500/50" },
-        ].map((k) => {
-          const Icon = k.icon;
-          const bg = `bg-${k.color}-500/10 border-${k.color}-500/20`;
-          const ic = `text-${k.color}-400`;
-          return (
-            <div key={k.label} className={`glass-panel rounded-lg p-4 border-l-2 ${k.border}`}>
-              <div className="flex items-center gap-3">
-                <div className={`w-9 h-9 rounded border flex items-center justify-center ${bg}`}><Icon className={`w-4 h-4 ${ic}`} /></div>
-                <div>
-                  <p className="text-[10px] text-gray-500 uppercase tracking-widest">{k.label}</p>
-                  <p className={`text-xl font-orbitron font-bold ${k.val}`}>{k.value}</p>
-                </div>
-              </div>
-            </div>
-          );
-        })}
+        <KpiCard title="Scheduled" value={kpiScheduled} icon={Calendar} />
+        <KpiCard title="Active (Counting)" value={kpiActive} icon={Activity} variant="success" />
+        <KpiCard title="Needs Recon" value={kpiRecon} icon={AlertTriangle} variant="warning" />
+        <KpiCard title="Variance Impact (MTD)" value={`- RM ${Math.abs(kpiVariance).toFixed(2)}`} icon={TrendingDown} variant="danger" />
       </div>
 
       {/* ── Table ───────────────────────────────────────────────── */}
@@ -199,15 +177,18 @@ export default function InventoryAuditsPage() {
             <input type="text" placeholder="Search Audit ID..." value={search} onChange={(e) => setSearch(e.target.value)}
               className="w-full bg-[#020408] border border-white/10 text-sm text-white rounded-md pl-10 pr-4 py-2 focus:outline-none focus:border-[rgba(212,175,55,0.5)] transition-all" />
           </div>
-          <div className="flex items-center gap-3">
-            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
-              className="bg-[#020408] border border-white/10 text-xs text-gray-300 rounded-md px-3 py-2 pr-8 focus:outline-none focus:border-[rgba(212,175,55,0.5)] cursor-pointer appearance-none">
-              <option value="all">Status: All</option>
-              <option value="Scheduled">Scheduled</option>
-              <option value="Active">Active (Counting)</option>
-              <option value="Needs Reconciliation">Needs Reconciliation</option>
-              <option value="Closed">Closed</option>
-            </select>
+          <div className="flex items-center gap-3 flex-wrap">
+            <FilterChips
+              options={[
+                { value: "all", label: "All" },
+                { value: "Scheduled", label: "Scheduled" },
+                { value: "Active", label: "Counting" },
+                { value: "Needs Reconciliation", label: "Needs Recon" },
+                { value: "Closed", label: "Closed" },
+              ]}
+              value={statusFilter}
+              onChange={setStatusFilter}
+            />
             <select value={locationFilter} onChange={(e) => setLocationFilter(e.target.value)}
               className="bg-[#020408] border border-white/10 text-xs text-gray-300 rounded-md px-3 py-2 pr-8 focus:outline-none focus:border-[rgba(212,175,55,0.5)] cursor-pointer appearance-none">
               <option value="all">Location: All</option>
@@ -254,12 +235,13 @@ export default function InventoryAuditsPage() {
                     </td>
                     <td className="px-5 py-4 text-right">
                       {a.varianceRm !== null ? (
-                        <span className={`font-bold ${a.varianceRm < 0 ? "text-red-400" : a.varianceRm > 0 ? "text-green-400" : "text-gray-500"}`}>
+                        <span className={`font-bold inline-flex items-center gap-1 ${a.varianceRm < 0 ? "text-red-400 bg-red-500/10 px-2 py-0.5 rounded border border-red-500/20" : a.varianceRm > 0 ? "text-emerald-400" : "text-gray-500"}`}>
+                          {a.varianceRm < 0 && <TrendingDown className="w-3 h-3" />}
                           {a.varianceRm < 0 ? "- " : ""}RM {Math.abs(a.varianceRm).toFixed(2)}
                         </span>
                       ) : <span className="text-gray-600 italic">—</span>}
                     </td>
-                    <td className="px-5 py-4">{statusBadge(a.status)}</td>
+                    <td className="px-5 py-4"><StatusBadge status={mapAuditStatus(a.status)} /></td>
                     <td className="px-5 py-4 text-right">
                       {a.status === "Needs Reconciliation" ? (
                         <button onClick={() => openReconModal(globalIdx)}
@@ -393,8 +375,12 @@ export default function InventoryAuditsPage() {
                           </td>
                           <td className="px-4 py-3 text-center border-l border-white/5 text-gray-400">{item.expected}</td>
                           <td className="px-4 py-3 text-center text-white font-bold">{item.counted}</td>
-                          <td className="px-4 py-3 text-center border-r border-white/5 text-yellow-400 font-bold">{variance}</td>
-                          <td className="px-4 py-3 text-right text-red-400 font-bold">- RM {Math.abs(impact).toFixed(2)}</td>
+                          <td className="px-4 py-3 text-center border-r border-white/5">
+                            <span className={`font-bold ${variance < 0 ? "text-red-400 bg-red-500/10 px-2 py-0.5 rounded" : variance > 0 ? "text-emerald-400" : "text-gray-500"}`}>{variance}</span>
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <span className="text-red-400 font-bold bg-red-500/10 px-2 py-0.5 rounded border border-red-500/20">- RM {Math.abs(impact).toFixed(2)}</span>
+                          </td>
                           <td className="px-4 py-3">
                             <select className="w-full bg-[#020408] border border-white/10 text-xs text-gray-300 rounded px-2 py-1.5 focus:outline-none focus:border-red-500 cursor-pointer">
                               <option value="">Select Reason...</option>

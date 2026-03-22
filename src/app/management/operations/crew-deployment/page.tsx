@@ -4,7 +4,9 @@ import { useState, useMemo, useEffect, useTransition } from "react";
 import { fetchCrewForDeploymentAction, assignCrewToZoneAction, createShiftOverrideAction } from "../actions";
 import {
   Radar, Search, ChevronDown, ChevronLeft, ChevronRight, Lock, CheckCircle2,
+  Users, UserCheck, UserX, Shield, AlertTriangle,
 } from "lucide-react";
+import { KpiCard } from "@/components/shared";
 
 // ── Types & Constants ───────────────────────────────────────────────────────
 
@@ -167,18 +169,18 @@ export default function CrewDeploymentPage() {
 
       {/* ── Summary Stats ───────────────────────────────────────── */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        {[
-          { label: "Total Crew", value: stats.total, color: "text-white" },
-          { label: "On Shift", value: stats.onShift, color: "text-emerald-400" },
-          { label: "Off Duty", value: stats.offDuty, color: "text-gray-500" },
-          { label: "Managers On Site", value: stats.mgrCount, color: "text-[#d4af37]" },
-          { label: "Active Overrides", value: stats.overrideCount, color: "text-amber-400" },
-        ].map((s) => (
-          <div key={s.label} className="bg-[#020408]/40 border border-white/5 rounded-lg px-4 py-3">
-            <p className="text-[10px] text-gray-500 uppercase tracking-widest mb-0.5">{s.label}</p>
-            <p className={`font-orbitron text-xl ${s.color}`}>{s.value}</p>
-          </div>
-        ))}
+        <KpiCard title="Total Crew" value={stats.total} icon={Users}
+          subtitle={`${stats.total + stats.mgrCount} total personnel`} />
+        <KpiCard title="On Shift" value={stats.onShift} icon={UserCheck}
+          variant="success"
+          subtitle={stats.total > 0 ? `${Math.round((stats.onShift / stats.total) * 100)}% deployed` : "—"} />
+        <KpiCard title="Off Duty" value={stats.offDuty} icon={UserX}
+          subtitle="Available pool" />
+        <KpiCard title="Managers On Site" value={stats.mgrCount} icon={Shield}
+          subtitle="Supervisory staff" />
+        <KpiCard title="Active Overrides" value={stats.overrideCount} icon={AlertTriangle}
+          variant={stats.overrideCount > 3 ? "warning" : "default"}
+          subtitle="Shift changes today" />
       </div>
 
       {/* ── Data Grid ───────────────────────────────────────────── */}

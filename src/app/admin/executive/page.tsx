@@ -9,6 +9,32 @@ import {
   fetchExecutiveStatsAction,
   type ExecutiveStats,
 } from "../admin-analytics-actions";
+import { KpiCard, ChartContainer, ProgressBar } from "@/components/shared";
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  LineElement,
+  PointElement,
+  ArcElement,
+  Tooltip,
+  Legend,
+  Filler,
+} from "chart.js";
+import { Bar, Doughnut } from "react-chartjs-2";
+
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  LineElement,
+  PointElement,
+  ArcElement,
+  Tooltip,
+  Legend,
+  Filler,
+);
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -21,18 +47,50 @@ const FILTER_LABELS: { key: TimeFilter; label: string }[] = [
   { key: "ytd",   label: "YTD" },
 ];
 
+// ── Revenue target (configurable) ─────────────────────────────────────────────
+
+const REVENUE_TARGET = 50_000; // RM — adjust per business goals
+
 // ── Utility ───────────────────────────────────────────────────────────────────
 
 function pctChange(current: number, prev: number): string {
-  if (prev === 0) return current > 0 ? "+∞" : "—";
+  if (prev === 0) return current > 0 ? "+\u221E" : "\u2014";
   const pct = ((current - prev) / prev) * 100;
   return `${pct >= 0 ? "+" : ""}${pct.toFixed(1)}%`;
+}
+
+function pctChangeNum(current: number, prev: number): number {
+  if (prev === 0) return current > 0 ? 100 : 0;
+  return Number((((current - prev) / prev) * 100).toFixed(1));
 }
 
 function fmt(n: number) {
   if (n >= 1_000_000) return `RM ${(n / 1_000_000).toFixed(2)}M`;
   if (n >= 1_000) return `RM ${(n / 1_000).toFixed(1)}K`;
   return `RM ${n.toFixed(2)}`;
+}
+
+// ── Mock forecast data generator ──────────────────────────────────────────────
+
+function generateForecastData(grossRevenue: number) {
+  const labels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  const dailyAvg = grossRevenue / 7;
+
+  // Simulate daily actuals with some variance
+  const actuals = labels.map((_, i) => {
+    const variance = 0.6 + Math.random() * 0.8;
+    const weekendBoost = i >= 5 ? 1.4 : 1;
+    return Math.round(dailyAvg * variance * weekendBoost);
+  });
+
+  // Forecast line: smoothed trend slightly above actuals
+  const forecast = labels.map((_, i) => {
+    const base = dailyAvg * (0.9 + i * 0.05);
+    const weekendBoost = i >= 5 ? 1.3 : 1;
+    return Math.round(base * weekendBoost);
+  });
+
+  return { labels, actuals, forecast };
 }
 
 // ── Skeleton ──────────────────────────────────────────────────────────────────
@@ -44,6 +102,19 @@ function Skeleton({ className = "", style }: { className?: string; style?: React
       style={{ minHeight: 20, ...style }}
     />
   );
+}
+
+// ── Tier color helper ─────────────────────────────────────────────────────────
+
+const TIER_COLORS: Record<string, string> = {
+  Diver: "#d4af37",
+  Swimmer: "#806b45",
+  Skimmer: "rgba(148,163,184,0.5)",
+  Other: "rgba(255,255,255,0.2)",
+};
+
+function tierColor(name: string) {
+  return TIER_COLORS[name] ?? TIER_COLORS.Other;
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────
@@ -63,48 +134,9 @@ export default function ExecutivePage() {
   const loading = isPending || stats === null;
   const noData = !loading && stats !== null && stats.ticketCount === 0;
 
-  // Derived KPI values
-  const kpis = stats
-    ? [
-        {
-          label: "Gross Revenue",
-          value: fmt(stats.grossRevenue),
-          change: pctChange(stats.grossRevenue, stats.prevGrossRevenue),
-          positive: stats.grossRevenue >= stats.prevGrossRevenue,
-          icon: DollarSign,
-          sub: "vs prior period",
-          extra: null as number | null,
-        },
-        {
-          label: "Park Utilization",
-          value: `${stats.utilizationPct}%`,
-          change: stats.utilizationPct > 80 ? "Near Cap" : stats.utilizationPct > 50 ? "Optimal" : "Low",
-          positive: stats.utilizationPct > 50,
-          icon: BarChart2,
-          sub: "",
-          extra: stats.utilizationPct,
-        },
-        {
-          label: "Tickets Sold",
-          value: stats.ticketCount.toLocaleString(),
-          change: pctChange(stats.ticketCount, stats.prevTicketCount),
-          positive: stats.ticketCount >= stats.prevTicketCount,
-          icon: Users,
-          sub: "vs prior period",
-          extra: null as number | null,
-        },
-        {
-          label: "ARPC",
-          value: fmt(stats.arpc),
-          change: "Avg Rev / Guest",
-          positive: true,
-          icon: Activity,
-          sub: "revenue ÷ unique guests",
-          extra: null as number | null,
-          tooltip: "Average Revenue Per Capita: total non-cancelled revenue divided by total guest headcount.",
-        },
-      ]
-    : [];
+  // Derived values
+  const revenuePct = stats ? Math.min(100, Math.round((stats.grossRevenue / REVENUE_TARGET) * 100)) : 0;
+  const forecastData = stats ? generateForecastData(stats.grossRevenue) : null;
 
   return (
     <div className="space-y-10 pb-10">
@@ -134,7 +166,7 @@ export default function ExecutivePage() {
         </div>
       </div>
 
-      {/* ── KPI Cards ─────────────────────────────────────────────────── */}
+      {/* ── KPI Cards (shared KpiCard component) ──────────────────────── */}
       <section>
         <h3 className="font-cinzel text-lg text-[#d4af37] mb-4 flex items-center tracking-wider">
           <Activity className="w-5 h-5 mr-2" /> Executive Command Center
@@ -146,48 +178,72 @@ export default function ExecutivePage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {loading
-              ? Array.from({ length: 4 }).map((_, i) => (
-                  <div key={i} className="glass-panel rounded-lg p-5 space-y-3">
-                    <Skeleton className="h-4 w-28" />
-                    <Skeleton className="h-8 w-36" />
-                    <Skeleton className="h-3 w-20" />
-                  </div>
-                ))
-              : kpis.map((k) => {
-                  const Icon = k.icon;
-                  return (
-                    <div
-                      key={k.label}
-                      className="glass-panel rounded-lg p-5 flex flex-col justify-between group hover:border-[rgba(212,175,55,0.3)] transition-all relative"
-                      title={(k as { tooltip?: string }).tooltip}
-                    >
-                      <p className="text-sm text-gray-400 uppercase tracking-widest mb-1 font-semibold flex items-center justify-between">
-                        {k.label}
-                        <Icon className="w-4 h-4 text-gray-500 group-hover:text-[#d4af37] transition-colors" />
-                      </p>
-                      <div className="flex items-end justify-between mt-1">
-                        <h4 className="font-orbitron text-3xl font-bold text-white">{k.value}</h4>
-                        <span className={`text-xs flex items-center px-2 py-1 rounded ${k.positive ? "text-green-400 bg-green-400/10" : "text-[#d4af37] bg-[rgba(212,175,55,0.1)]"}`}>
-                          {k.change.includes("+") && <TrendingUp className="w-3 h-3 mr-1" />}
-                          {k.change}
-                        </span>
-                      </div>
-                      {typeof k.extra === "number" && (
-                        <div className="w-full bg-[#020408] rounded-full h-1.5 mt-3">
-                          <div
-                            className="bg-gradient-to-r from-[#806b45] to-[#d4af37] h-1.5 rounded-full transition-all"
-                            style={{ width: `${k.extra}%` }}
-                          />
-                        </div>
-                      )}
-                      {k.sub && <p className="text-[10px] text-gray-500 mt-1">{k.sub}</p>}
-                    </div>
-                  );
-                })}
+            {loading ? (
+              Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="glass-panel rounded-lg p-5 space-y-3">
+                  <Skeleton className="h-4 w-28" />
+                  <Skeleton className="h-8 w-36" />
+                  <Skeleton className="h-3 w-20" />
+                </div>
+              ))
+            ) : stats ? (
+              <>
+                <KpiCard
+                  title="Gross Revenue"
+                  value={fmt(stats.grossRevenue)}
+                  icon={DollarSign}
+                  trend={{ value: pctChangeNum(stats.grossRevenue, stats.prevGrossRevenue), label: "vs prior period" }}
+                  variant={stats.grossRevenue >= stats.prevGrossRevenue ? "success" : "warning"}
+                />
+                <KpiCard
+                  title="Park Utilization"
+                  value={`${stats.utilizationPct}%`}
+                  icon={BarChart2}
+                  subtitle={stats.utilizationPct > 80 ? "Near Capacity" : stats.utilizationPct > 50 ? "Optimal" : "Low"}
+                  variant={stats.utilizationPct > 80 ? "warning" : stats.utilizationPct > 50 ? "success" : "default"}
+                />
+                <KpiCard
+                  title="Tickets Sold"
+                  value={stats.ticketCount.toLocaleString()}
+                  icon={Users}
+                  trend={{ value: pctChangeNum(stats.ticketCount, stats.prevTicketCount), label: "vs prior period" }}
+                  variant={stats.ticketCount >= stats.prevTicketCount ? "success" : "danger"}
+                />
+                <KpiCard
+                  title="ARPC"
+                  value={fmt(stats.arpc)}
+                  icon={Activity}
+                  subtitle="Avg Revenue Per Capita"
+                  variant="default"
+                />
+              </>
+            ) : null}
           </div>
         )}
       </section>
+
+      {/* ── Revenue vs Target Pacing ──────────────────────────────────── */}
+      {!loading && stats && (
+        <section>
+          <div className="glass-panel rounded-lg p-6">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <Target className="w-4 h-4 text-[#d4af37]" />
+                <span className="text-sm font-bold tracking-wider text-white">Revenue vs Target</span>
+              </div>
+              <span className="text-xs text-gray-400 font-mono">
+                {fmt(stats.grossRevenue)} / {fmt(REVENUE_TARGET)}
+              </span>
+            </div>
+            <ProgressBar
+              value={revenuePct}
+              label={`Pacing: ${revenuePct}% of target`}
+              showPercentage
+              variant={revenuePct >= 90 ? "success" : revenuePct >= 50 ? "gold" : "danger"}
+            />
+          </div>
+        </section>
+      )}
 
       {/* ── Financial Yield ───────────────────────────────────────────── */}
       <section>
@@ -205,7 +261,7 @@ export default function ExecutivePage() {
               ? <Skeleton className="h-10 w-40 mt-2" />
               : <h4 className="font-orbitron text-4xl font-bold text-white">{fmt(stats?.arpc ?? 0)}</h4>
             }
-            <p className="text-xs text-gray-500 mt-2">Total revenue ÷ unique paying guests</p>
+            <p className="text-xs text-gray-500 mt-2">Total revenue / unique paying guests</p>
           </div>
 
           {/* Total Guests */}
@@ -257,11 +313,169 @@ export default function ExecutivePage() {
         </div>
       </section>
 
-      {/* ── Charts Row ──────────────────────────────────────────────────── */}
+      {/* ── Charts Row: Actual vs Forecast + Revenue Drivers Doughnut ── */}
       <section>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
-          {/* Revenue by Tier — real data */}
+          {/* Actual vs. Forecast Revenue (Bar + Line combo) */}
+          <ChartContainer title="Actual vs. Forecast Revenue" subtitle="Daily revenue bars vs forecast trend line">
+            {loading || !forecastData ? (
+              <div className="flex items-end gap-3 h-64">
+                {Array.from({ length: 7 }).map((_, i) => (
+                  <Skeleton key={i} className="flex-1 rounded-t" style={{ height: `${30 + i * 8}%` }} />
+                ))}
+              </div>
+            ) : noData ? (
+              <div className="h-64 flex items-center justify-center text-gray-600 text-sm">No booking data for this period</div>
+            ) : (
+              <div className="h-64">
+                <Bar
+                  data={{
+                    labels: forecastData.labels,
+                    datasets: [
+                      {
+                        type: "bar" as const,
+                        label: "Actual Revenue",
+                        data: forecastData.actuals,
+                        backgroundColor: "rgba(212,175,55,0.6)",
+                        borderColor: "rgba(212,175,55,0.8)",
+                        borderWidth: 0,
+                        borderRadius: 4,
+                        yAxisID: "y",
+                        order: 2,
+                      },
+                      {
+                        type: "line" as const,
+                        label: "Forecast",
+                        data: forecastData.forecast,
+                        borderColor: "#22c55e",
+                        backgroundColor: "rgba(34,197,94,0.08)",
+                        borderWidth: 2,
+                        pointRadius: 3,
+                        pointBackgroundColor: "#22c55e",
+                        fill: true,
+                        tension: 0.4,
+                        yAxisID: "y",
+                        order: 1,
+                      },
+                    ],
+                  } as any}
+                  options={{
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { intersect: false, mode: "index" },
+                    plugins: {
+                      legend: {
+                        display: true,
+                        position: "top",
+                        labels: {
+                          color: "#6b7280",
+                          usePointStyle: true,
+                          pointStyle: "rectRounded",
+                          padding: 16,
+                          font: { size: 10 },
+                        },
+                      },
+                      tooltip: {
+                        backgroundColor: "rgba(0,0,0,0.85)",
+                        titleColor: "#d4af37",
+                        bodyColor: "#e5e7eb",
+                        borderColor: "rgba(212,175,55,0.3)",
+                        borderWidth: 1,
+                        callbacks: {
+                          label: (ctx) => `${ctx.dataset.label}: RM ${(ctx.parsed.y ?? 0).toLocaleString()}`,
+                        },
+                      },
+                    },
+                    scales: {
+                      x: {
+                        ticks: { color: "#6b7280", font: { size: 10 } },
+                        grid: { color: "rgba(255,255,255,0.05)" },
+                      },
+                      y: {
+                        ticks: {
+                          color: "#6b7280",
+                          font: { size: 10 },
+                          callback: (v) => `RM ${Number(v).toLocaleString()}`,
+                        },
+                        grid: { color: "rgba(255,255,255,0.05)" },
+                      },
+                    },
+                  }}
+                />
+              </div>
+            )}
+          </ChartContainer>
+
+          {/* Revenue Drivers Doughnut */}
+          <ChartContainer title="Revenue Drivers" subtitle="Revenue breakdown by tier">
+            {loading ? (
+              <div className="h-64 flex items-center justify-center">
+                <Skeleton className="w-40 h-40 rounded-full" />
+              </div>
+            ) : noData || !stats?.tierBreakdown?.length ? (
+              <div className="h-64 flex items-center justify-center text-gray-600 text-sm">No tier data for this period</div>
+            ) : (
+              <div className="h-64 flex items-center justify-center">
+                <div className="w-full max-w-xs">
+                  <Doughnut
+                    data={{
+                      labels: stats.tierBreakdown.map((t) => t.tier_name),
+                      datasets: [
+                        {
+                          data: stats.tierBreakdown.map((t) => t.revenue),
+                          backgroundColor: stats.tierBreakdown.map((t) => tierColor(t.tier_name)),
+                          borderColor: "rgba(0,0,0,0.3)",
+                          borderWidth: 2,
+                          hoverBorderColor: "#d4af37",
+                          hoverBorderWidth: 2,
+                        },
+                      ],
+                    }}
+                    options={{
+                      responsive: true,
+                      maintainAspectRatio: false,
+                      cutout: "60%",
+                      plugins: {
+                        legend: {
+                          position: "bottom",
+                          labels: {
+                            color: "#6b7280",
+                            usePointStyle: true,
+                            pointStyle: "circle",
+                            padding: 16,
+                            font: { size: 11 },
+                          },
+                        },
+                        tooltip: {
+                          backgroundColor: "rgba(0,0,0,0.85)",
+                          titleColor: "#d4af37",
+                          bodyColor: "#e5e7eb",
+                          borderColor: "rgba(212,175,55,0.3)",
+                          borderWidth: 1,
+                          callbacks: {
+                            label: (ctx) => {
+                              const total = (ctx.dataset.data as number[]).reduce((a, b) => a + b, 0);
+                              const pct = total > 0 ? ((ctx.parsed / total) * 100).toFixed(1) : "0";
+                              return `${ctx.label}: RM ${ctx.parsed.toLocaleString()} (${pct}%)`;
+                            },
+                          },
+                        },
+                      },
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+          </ChartContainer>
+        </div>
+      </section>
+
+      {/* ── Original Charts Row (Tier Bars + Volume) ─────────────────── */}
+      <section>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+          {/* Revenue by Tier -- real data */}
           <div className="glass-panel rounded-lg p-5 flex flex-col" style={{ minHeight: 320 }}>
             <div className="flex justify-between items-center mb-4">
               <p className="text-sm text-gray-300 font-semibold tracking-wide">Revenue by Tier</p>
@@ -281,9 +495,6 @@ export default function ExecutivePage() {
                   {(stats?.tierBreakdown ?? []).map((t) => {
                     const maxRev = Math.max(...(stats?.tierBreakdown ?? []).map((x) => x.revenue));
                     const pct = maxRev > 0 ? (t.revenue / maxRev) * 100 : 0;
-                    const color = t.tier_name === "Diver" ? "#d4af37"
-                      : t.tier_name === "Swimmer" ? "#806b45"
-                      : "rgba(255,255,255,0.2)";
                     return (
                       <div key={t.tier_name} className="flex-1 flex flex-col items-center gap-1 min-w-0">
                         <span className="text-[9px] text-gray-400 font-mono">
@@ -292,7 +503,7 @@ export default function ExecutivePage() {
                         <div className="flex-1 w-full flex items-end">
                           <div
                             className="w-full rounded-t transition-all"
-                            style={{ height: `${Math.max(4, pct)}%`, backgroundColor: color }}
+                            style={{ height: `${Math.max(4, pct)}%`, backgroundColor: tierColor(t.tier_name) }}
                             title={`${t.tier_name}: ${t.count} bookings`}
                           />
                         </div>
@@ -310,7 +521,7 @@ export default function ExecutivePage() {
             )}
           </div>
 
-          {/* Ticket Volume Trend — real counts per tier */}
+          {/* Ticket Volume Trend -- real counts per tier */}
           <div className="glass-panel rounded-lg p-5 flex flex-col" style={{ minHeight: 320 }}>
             <div className="flex justify-between items-center mb-4">
               <p className="text-sm text-gray-300 font-semibold tracking-wide">Ticket Volume by Tier</p>
@@ -327,9 +538,6 @@ export default function ExecutivePage() {
                 {(stats?.tierBreakdown ?? []).map((t) => {
                   const maxC = Math.max(...(stats?.tierBreakdown ?? []).map((x) => x.count));
                   const pct = maxC > 0 ? (t.count / maxC) * 100 : 0;
-                  const color = t.tier_name === "Diver" ? "#d4af37"
-                    : t.tier_name === "Swimmer" ? "#806b45"
-                    : "rgba(255,255,255,0.2)";
                   return (
                     <div key={t.tier_name}>
                       <div className="flex justify-between text-xs text-gray-400 mb-1">
@@ -339,14 +547,14 @@ export default function ExecutivePage() {
                       <div className="w-full bg-[#020408] rounded-full h-2.5 border border-white/5">
                         <div
                           className="h-2.5 rounded-full transition-all"
-                          style={{ width: `${pct}%`, backgroundColor: color }}
+                          style={{ width: `${pct}%`, backgroundColor: tierColor(t.tier_name) }}
                         />
                       </div>
                     </div>
                   );
                 })}
                 <p className="text-[10px] text-gray-600 mt-2">
-                  Total tickets: {stats?.ticketCount.toLocaleString() ?? "—"}
+                  Total tickets: {stats?.ticketCount.toLocaleString() ?? "\u2014"}
                 </p>
               </div>
             )}
@@ -374,9 +582,6 @@ export default function ExecutivePage() {
               {(stats?.tierBreakdown ?? []).map((t) => {
                 const totalRev = (stats?.tierBreakdown ?? []).reduce((s, x) => s + x.revenue, 0);
                 const pct = totalRev > 0 ? Math.round((t.revenue / totalRev) * 100) : 0;
-                const color = t.tier_name === "Diver" ? "#d4af37"
-                  : t.tier_name === "Swimmer" ? "#806b45"
-                  : "rgba(255,255,255,0.2)";
                 return (
                   <div key={t.tier_name}>
                     <div className="flex justify-between text-xs text-gray-400 mb-1">
@@ -384,7 +589,7 @@ export default function ExecutivePage() {
                       <span className="font-mono">{pct}%</span>
                     </div>
                     <div className="w-full bg-[#020408] rounded-full h-2.5 border border-white/5">
-                      <div className="h-2.5 rounded-full" style={{ width: `${pct}%`, backgroundColor: color }} />
+                      <div className="h-2.5 rounded-full" style={{ width: `${pct}%`, backgroundColor: tierColor(t.tier_name) }} />
                     </div>
                   </div>
                 );

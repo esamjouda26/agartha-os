@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { BarChart3, CalendarDays, Clock, MousePointerClick } from "lucide-react";
+import { BarChart3, CalendarDays, Clock, MousePointerClick, Users, TrendingUp, AlertTriangle } from "lucide-react";
 import type { ForecastRow } from "./page";
+import { KpiCard } from "@/components/shared";
 
 /* ── Constants ──────────────────────────────────────────────────────── */
 const TOTAL_DAILY_CAPACITY = 1000;
@@ -158,8 +159,29 @@ export default function DemandForecastClient({ forecasts }: { forecasts: Forecas
   const selectedPct = selectedDay ? Math.round(selectedDay.percent) : 0;
   const selectedStatus = getStatusInfo(selectedPct);
 
+  /* KPI aggregations */
+  const validDays = calendarData.filter((d) => d.isValid);
+  const avgCapacity = validDays.length > 0 ? Math.round(validDays.reduce((s, d) => s + d.percent, 0) / validDays.length) : 0;
+  const totalForecasted = validDays.reduce((s, d) => s + d.total, 0);
+  const highDays = validDays.filter((d) => d.percent >= 80).length;
+  const peakDay = validDays.reduce((best, d) => d.total > best.total ? d : best, { total: 0, dayStr: "—" } as CalendarDay);
+
   return (
     <div className="space-y-5 pb-10">
+      {/* ═══ KPI SUMMARY ═══ */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <KpiCard title="Avg. Capacity" value={`${avgCapacity}%`} icon={TrendingUp}
+          variant={avgCapacity >= 80 ? "danger" : avgCapacity >= 40 ? "warning" : "default"}
+          subtitle={`${validDays.length} forecast days`} />
+        <KpiCard title="Total Forecasted" value={totalForecasted.toLocaleString()} icon={Users}
+          subtitle="Guests over period" />
+        <KpiCard title="High-Load Days" value={highDays} icon={AlertTriangle}
+          variant={highDays > 5 ? "danger" : highDays > 2 ? "warning" : "default"}
+          subtitle=">80% capacity" />
+        <KpiCard title="Peak Day" value={peakDay.total.toLocaleString()} icon={CalendarDays}
+          subtitle={peakDay.dayStr} />
+      </div>
+
       {/* ═══ HEADER ═══ */}
       <div className="flex items-center justify-end">
         

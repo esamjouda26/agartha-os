@@ -1,10 +1,22 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { Search, Layers, AlertTriangle, CheckCircle2, Database, X, CopyCheck, Boxes, ChevronLeft, ChevronRight } from "lucide-react";
+import { useState, useTransition, useMemo } from "react";
+import { Search, Layers, AlertTriangle, CheckCircle2, Database, X, CopyCheck, Boxes, ChevronLeft, ChevronRight, BarChart3 } from "lucide-react";
 import { updateStockPolicyAction } from "@/app/management/inventory/actions";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import DomainAuditTable from "@/components/DomainAuditTable";
+import { KpiCard, ChartContainer } from "@/components/shared";
+import { Bar } from "react-chartjs-2";
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Tooltip,
+  Legend,
+} from "chart.js";
+
+ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip, Legend);
 
 interface StockLevel { id: string; location_id: string; current_qty: number; max_qty: number | null }
 interface Product {
@@ -29,6 +41,68 @@ function typeBadge(cat: string | null) {
   };
   const cls = m[formatted] ?? "bg-gray-500/10 text-gray-400 border-gray-500/20";
   return <span className={`px-2 py-0.5 rounded text-[10px] border font-sans ${cls}`}>{formatted}</span>;
+}
+
+// ── Stock Chart Component ────────────────────────────────────────────────────
+
+function StockByLocationChart({ products, locations }: { products: Product[]; locations: StockLocation[] }) {
+  const chartData = useMemo(() => {
+    const categorySet = new Set<string>();
+    products.forEach((p) => { if (p.product_category) categorySet.add(p.product_category); });
+    const categories = Array.from(categorySet);
+
+    const palette = [
+      "rgba(212,175,55,0.8)",   // gold
+      "rgba(205,127,50,0.8)",   // bronze
+      "rgba(16,185,129,0.8)",   // emerald
+      "rgba(59,130,246,0.8)",   // blue
+      "rgba(168,85,247,0.8)",   // purple
+    ];
+
+    const datasets = categories.map((cat, ci) => ({
+      label: cat.split("_").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" "),
+      data: locations.map((loc) => {
+        return products
+          .filter((p) => p.product_category === cat)
+          .reduce((sum, p) => {
+            const sl = p.product_stock_levels.find((s) => s.location_id === loc.id);
+            return sum + (sl?.current_qty ?? 0);
+          }, 0);
+      }),
+      backgroundColor: palette[ci % palette.length],
+      borderColor: palette[ci % palette.length].replace("0.8", "1"),
+      borderWidth: 1,
+      borderRadius: 4,
+    }));
+
+    return {
+      labels: locations.map((l) => l.name),
+      datasets,
+    };
+  }, [products, locations]);
+
+  const options = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { position: "top" as const, labels: { color: "#9ca3af", font: { size: 11, family: "Orbitron, sans-serif" }, boxWidth: 12, padding: 16 } },
+      tooltip: { backgroundColor: "#0a0c10", titleColor: "#d4af37", bodyColor: "#e5e7eb", borderColor: "rgba(212,175,55,0.3)", borderWidth: 1 },
+    },
+    scales: {
+      x: { ticks: { color: "#6b7280", font: { size: 10 } }, grid: { color: "rgba(255,255,255,0.05)" } },
+      y: { ticks: { color: "#6b7280", font: { size: 10 } }, grid: { color: "rgba(255,255,255,0.05)" }, beginAtZero: true },
+    },
+  };
+
+  if (locations.length === 0) return null;
+
+  return (
+    <ChartContainer title="Stock Levels by Location" subtitle="Current inventory breakdown per category">
+      <div className="h-[280px]">
+        <Bar data={chartData} options={options} />
+      </div>
+    </ChartContainer>
+  );
 }
 
 export default function InventoryTableClient({
@@ -151,31 +225,14 @@ export default function InventoryTableClient({
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {[
-          { label: "Tracked SKUs", value: count, icon: Boxes, color: "blue", val: "text-white" },
-          { label: "Configured (Page)", value: configuredCount, icon: CheckCircle2, color: "green", val: "text-green-400" },
-          { label: "Missing (Page)", value: missingCount, icon: AlertTriangle, color: "yellow", val: "text-yellow-400" },
-          { label: "Total Global Max", value: totalGlobalMax.toLocaleString(), icon: Database, color: "gold", val: "text-[#d4af37]" },
-        ].map((k) => {
-          const Icon = k.icon;
-          const border = k.color === "gold" ? "border-[#d4af37]/50" : `border-${k.color}-500/50`;
-          const bg = k.color === "gold" ? "bg-[#d4af37]/10 border-[#d4af37]/20" : `bg-${k.color}-500/10 border-${k.color}-500/20`;
-          const ic = k.color === "gold" ? "text-[#d4af37]" : `text-${k.color}-400`;
-          return (
-            <div key={k.label} className={`glass-panel rounded-lg p-4 border-l-2 ${border}`}>
-              <div className="flex items-center gap-3">
-                <div className={`w-9 h-9 rounded border flex items-center justify-center ${bg}`}>
-                  <Icon className={`w-4 h-4 ${ic}`} />
-                </div>
-                <div>
-                  <p className="text-[10px] text-gray-500 uppercase tracking-widest">{k.label}</p>
-                  <p className={`text-xl font-orbitron font-bold ${k.val}`}>{k.value}</p>
-                </div>
-              </div>
-            </div>
-          );
-        })}
+        <KpiCard title="Tracked SKUs" value={count} icon={Boxes} />
+        <KpiCard title="Configured (Page)" value={configuredCount} icon={CheckCircle2} variant="success" />
+        <KpiCard title="Missing (Page)" value={missingCount} icon={AlertTriangle} variant="warning" />
+        <KpiCard title="Total Global Max" value={totalGlobalMax.toLocaleString()} icon={Database} />
       </div>
+
+      {/* ── Stock Levels by Location Chart ─────────────────────────── */}
+      <StockByLocationChart products={filtered} locations={trackable} />
 
       <div className="glass-panel rounded-lg overflow-hidden flex flex-col min-h-[500px]">
         <div className="p-4 border-b border-white/10 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-[#020408]/40">
