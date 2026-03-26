@@ -45,9 +45,11 @@ const MANAGEMENT_ROUTES: Record<string, { href: string; label: string; icon: Rea
     { href: "/management/marketing/demand",     label: "Demand & Yield Forecasts",   icon: Calendar },
   ],
   human_resources_manager: [
-    { href: "/management/hr-roster",              label: "Staff Management",          icon: Users },
-    { href: "/management/hr-roster/shifts",       label: "Shift Scheduling",          icon: CalendarClock },
-    { href: "/management/hr-roster/attendance",   label: "Attendance & Compliance",   icon: ShieldCheck },
+    { href: "/management/hr-roster",                    label: "Staff Management",          icon: Users },
+    { href: "/management/hr-roster/shifts",             label: "Shift Scheduling",          icon: CalendarClock },
+    { href: "/management/hr-roster/attendance/ledger",  label: "Master Ledger",             icon: ShieldCheck },
+    { href: "/management/hr-roster/attendance/leaves",  label: "Leave Management",          icon: Calendar },
+    { href: "/management/hr-roster/attendance/queue",   label: "Discrepancy Queue",         icon: AlertTriangle },
   ],
   compliance_manager: [],
   operations_manager: [

@@ -235,20 +235,7 @@ export async function fetchExperiencesListAction() {
   return data ?? [];
 }
 
-// ── Audit Log (Rule 6.3) ───────────────────────────────────────────────────
-
-const ROLE_ENTITY_ACCESS: Record<string, string[]> = {
-  it_admin: ["product", "time_slot", "device", "role", "profile", "zone", "incident", "staff_record", "maintenance_work_order"],
-  business_admin: ["product", "time_slot", "device", "role", "profile", "zone", "incident", "staff_record", "maintenance_work_order"],
-  human_resources_manager: ["staff_record", "shift_schedule", "incident"],
-  operations_manager: ["time_slot", "incident", "zone", "maintenance_work_order"],
-  inventory_manager: ["product", "purchase_order", "inventory_transfer"],
-  fnb_manager: ["product", "fnb_menu_item", "fnb_order"],
-  merch_manager: ["product", "inventory_transfer"],
-  maintenance_manager: ["maintenance_work_order", "device", "incident"],
-  marketing_manager: ["campaign", "promo_code"],
-  compliance_manager: ["incident", "staff_record", "system_audit_log"],
-};
+// ── System Audits & Permissions Hierarchy (Phase 2 Migration) ───────────────────────────────────────────────────
 
 export async function fetchDomainAuditLogs(entityTypes: string[], page = 1, pageSize = 25): Promise<PaginatedResult<Record<string, unknown>>> {
   const supabase = await createClient();
@@ -257,21 +244,57 @@ export async function fetchDomainAuditLogs(entityTypes: string[], page = 1, page
 
   if (!staffRole) return { data: [], total: 0, page, pageSize };
 
-  // Server-side validation: only allow entity types this role can access
-  const allowedTypes = ROLE_ENTITY_ACCESS[staffRole] ?? [];
-  const filteredTypes = entityTypes.filter((t) => allowedTypes.includes(t));
-
-  if (filteredTypes.length === 0) return { data: [], total: 0, page, pageSize };
-
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
 
+  // With the Phase 2 migration, RLS handles RBAC filtering mathematically inside the Postgres Engine based on the Dictionary.
+  // We can safely execute this directly with the standard client.
   const { data, count } = await supabase
     .from("system_audit_log")
     .select("*", { count: "exact" })
-    .in("entity_type", filteredTypes)
+    .in("entity_type", entityTypes)
     .order("created_at", { ascending: false })
     .range(from, to);
 
   return { data: (data ?? []) as Record<string, unknown>[], total: count ?? 0, page, pageSize };
+}
+
+export async function fetchRolePermissionsMatrixAction() {
+  const caller = await requireRole("management");
+  if (!caller) throw new Error("Unauthorized");
+  
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  const role = user?.app_metadata?.staff_role;
+  if (role !== "it_admin" && role !== "business_admin") throw new Error("Requires IT Admin clearance.");
+
+  const { data, error } = await supabase
+    .from("role_permissions")
+    .select("*")
+    .order("role_id")
+    .order("entity_type");
+    
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+export async function mutateRolePermissionAction(roleId: string, entityType: string, canSelect: boolean) {
+  const caller = await requireRole("management");
+  if (!caller) throw new Error("Unauthorized");
+  
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  const role = user?.app_metadata?.staff_role;
+  if (role !== "it_admin" && role !== "business_admin") throw new Error("Requires IT Admin clearance.");
+
+  const { error } = await supabase
+    .from("role_permissions")
+    .upsert({
+       role_id: roleId,
+       entity_type: entityType,
+       can_select: canSelect
+    }, { onConflict: "role_id, entity_type" });
+
+  if (error) throw new Error(error.message);
+  return { success: true };
 }

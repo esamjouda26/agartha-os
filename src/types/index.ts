@@ -37,33 +37,3 @@ export type StaffRole =
   | "security_crew" | "health_crew" | "cleaning_crew" | "experience_crew"
   | "internal_maintainence_crew";
 
-/**
- * Map of staff_role values to the portal domains they're allowed to access.
- * Exactly 19 roles mapped to their respective portal tiers.
- */
-export const ROLE_PORTAL_ACCESS: Record<StaffRole, PortalDomain[]> = {
-  // ── Admin (2) ─────────────────────────────────────────────────────────
-  it_admin: ["admin", "management", "crew"],
-  business_admin: ["admin", "management", "crew"],
-
-  // ── Management (8) ────────────────────────────────────────────────────
-  fnb_manager: ["management", "crew"],
-  merch_manager: ["management", "crew"],
-  maintenance_manager: ["management", "crew"],
-  inventory_manager: ["management", "crew"],
-  marketing_manager: ["management", "crew"],
-  human_resources_manager: ["management", "crew"],
-  compliance_manager: ["management", "crew"],
-  operations_manager: ["management", "crew"],
-
-  // ── Crew (9) ──────────────────────────────────────────────────────────
-  fnb_crew: ["crew"],
-  service_crew: ["crew"],
-  giftshop_crew: ["crew"],
-  runner_crew: ["crew"],
-  security_crew: ["crew"],
-  health_crew: ["crew"],
-  cleaning_crew: ["crew"],
-  experience_crew: ["crew"],
-  internal_maintainence_crew: ["crew"],
-};

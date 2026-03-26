@@ -76,6 +76,47 @@ export type Database = {
           },
         ]
       }
+      attendance_discrepancies: {
+        Row: {
+          created_at: string | null
+          detail: string | null
+          id: string
+          justification_reason: string | null
+          justified_by: string | null
+          shift_schedule_id: string | null
+          status: Database["public"]["Enums"]["exception_status"] | null
+          type: Database["public"]["Enums"]["exception_type"]
+        }
+        Insert: {
+          created_at?: string | null
+          detail?: string | null
+          id?: string
+          justification_reason?: string | null
+          justified_by?: string | null
+          shift_schedule_id?: string | null
+          status?: Database["public"]["Enums"]["exception_status"] | null
+          type: Database["public"]["Enums"]["exception_type"]
+        }
+        Update: {
+          created_at?: string | null
+          detail?: string | null
+          id?: string
+          justification_reason?: string | null
+          justified_by?: string | null
+          shift_schedule_id?: string | null
+          status?: Database["public"]["Enums"]["exception_status"] | null
+          type?: Database["public"]["Enums"]["exception_type"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendance_discrepancies_shift_schedule_id_fkey"
+            columns: ["shift_schedule_id"]
+            isOneToOne: false
+            referencedRelation: "shift_schedules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       biometric_vectors: {
         Row: {
           booking_ref: string
@@ -329,64 +370,6 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
-      }
-      crew_check_ins: {
-        Row: {
-          biometric_ref: string | null
-          check_in_time: string
-          check_out_time: string | null
-          created_at: string
-          id: string
-          shift_id: string | null
-          staff_record_id: string
-          status: Database["public"]["Enums"]["check_in_status"]
-          zone_id: string | null
-        }
-        Insert: {
-          biometric_ref?: string | null
-          check_in_time?: string
-          check_out_time?: string | null
-          created_at?: string
-          id?: string
-          shift_id?: string | null
-          staff_record_id: string
-          status?: Database["public"]["Enums"]["check_in_status"]
-          zone_id?: string | null
-        }
-        Update: {
-          biometric_ref?: string | null
-          check_in_time?: string
-          check_out_time?: string | null
-          created_at?: string
-          id?: string
-          shift_id?: string | null
-          staff_record_id?: string
-          status?: Database["public"]["Enums"]["check_in_status"]
-          zone_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "crew_check_ins_shift_id_fkey"
-            columns: ["shift_id"]
-            isOneToOne: false
-            referencedRelation: "shift_schedules"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "crew_check_ins_staff_record_id_fkey"
-            columns: ["staff_record_id"]
-            isOneToOne: false
-            referencedRelation: "staff_records"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "crew_check_ins_zone_id_fkey"
-            columns: ["zone_id"]
-            isOneToOne: false
-            referencedRelation: "zones"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       crew_locations: {
         Row: {
@@ -681,8 +664,8 @@ export type Database = {
           is_active: boolean | null
           linked_product_id: string | null
           menu_category:
-            | Database["public"]["Enums"]["fnb_menu_category_enum"]
-            | null
+          | Database["public"]["Enums"]["fnb_menu_category_enum"]
+          | null
           name: string
           unit_price: number | null
           updated_at: string | null
@@ -697,8 +680,8 @@ export type Database = {
           is_active?: boolean | null
           linked_product_id?: string | null
           menu_category?:
-            | Database["public"]["Enums"]["fnb_menu_category_enum"]
-            | null
+          | Database["public"]["Enums"]["fnb_menu_category_enum"]
+          | null
           name: string
           unit_price?: number | null
           updated_at?: string | null
@@ -713,8 +696,8 @@ export type Database = {
           is_active?: boolean | null
           linked_product_id?: string | null
           menu_category?:
-            | Database["public"]["Enums"]["fnb_menu_category_enum"]
-            | null
+          | Database["public"]["Enums"]["fnb_menu_category_enum"]
+          | null
           name?: string
           unit_price?: number | null
           updated_at?: string | null
@@ -1108,6 +1091,7 @@ export type Database = {
           description: string
           id: string
           logged_by: string
+          metadata: Json | null
           resolved_at: string | null
           resolved_by: string | null
           status: Database["public"]["Enums"]["incident_status"]
@@ -1122,6 +1106,7 @@ export type Database = {
           description: string
           id?: string
           logged_by: string
+          metadata?: Json | null
           resolved_at?: string | null
           resolved_by?: string | null
           status?: Database["public"]["Enums"]["incident_status"]
@@ -1136,6 +1121,7 @@ export type Database = {
           description?: string
           id?: string
           logged_by?: string
+          metadata?: Json | null
           resolved_at?: string | null
           resolved_by?: string | null
           status?: Database["public"]["Enums"]["incident_status"]
@@ -1385,11 +1371,58 @@ export type Database = {
           },
         ]
       }
+      leave_requests: {
+        Row: {
+          created_at: string | null
+          end_date: string
+          id: string
+          reason: string | null
+          rejection_reason: string | null
+          reviewed_by: string | null
+          staff_record_id: string | null
+          start_date: string
+          status: Database["public"]["Enums"]["leave_status"] | null
+          type: Database["public"]["Enums"]["leave_type"]
+        }
+        Insert: {
+          created_at?: string | null
+          end_date: string
+          id?: string
+          reason?: string | null
+          rejection_reason?: string | null
+          reviewed_by?: string | null
+          staff_record_id?: string | null
+          start_date: string
+          status?: Database["public"]["Enums"]["leave_status"] | null
+          type: Database["public"]["Enums"]["leave_type"]
+        }
+        Update: {
+          created_at?: string | null
+          end_date?: string
+          id?: string
+          reason?: string | null
+          rejection_reason?: string | null
+          reviewed_by?: string | null
+          staff_record_id?: string | null
+          start_date?: string
+          status?: Database["public"]["Enums"]["leave_status"] | null
+          type?: Database["public"]["Enums"]["leave_type"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leave_requests_staff_record_id_fkey"
+            columns: ["staff_record_id"]
+            isOneToOne: false
+            referencedRelation: "staff_records"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       locations: {
         Row: {
           allowed_categories:
-            | Database["public"]["Enums"]["product_category_enum"][]
-            | null
+          | Database["public"]["Enums"]["product_category_enum"][]
+          | null
           can_hold_inventory: boolean | null
           created_at: string
           created_by: string | null
@@ -1401,8 +1434,8 @@ export type Database = {
         }
         Insert: {
           allowed_categories?:
-            | Database["public"]["Enums"]["product_category_enum"][]
-            | null
+          | Database["public"]["Enums"]["product_category_enum"][]
+          | null
           can_hold_inventory?: boolean | null
           created_at?: string
           created_by?: string | null
@@ -1414,8 +1447,8 @@ export type Database = {
         }
         Update: {
           allowed_categories?:
-            | Database["public"]["Enums"]["product_category_enum"][]
-            | null
+          | Database["public"]["Enums"]["product_category_enum"][]
+          | null
           can_hold_inventory?: boolean | null
           created_at?: string
           created_by?: string | null
@@ -1691,14 +1724,14 @@ export type Database = {
           is_active: boolean
           name: string
           product_category:
-            | Database["public"]["Enums"]["product_category_enum"]
-            | null
+          | Database["public"]["Enums"]["product_category_enum"]
+          | null
           reorder_point: number
           sku: string | null
           supplier_id: string | null
           unit_of_measure:
-            | Database["public"]["Enums"]["unit_of_measure_enum"]
-            | null
+          | Database["public"]["Enums"]["unit_of_measure_enum"]
+          | null
           updated_at: string | null
         }
         Insert: {
@@ -1710,14 +1743,14 @@ export type Database = {
           is_active?: boolean
           name: string
           product_category?:
-            | Database["public"]["Enums"]["product_category_enum"]
-            | null
+          | Database["public"]["Enums"]["product_category_enum"]
+          | null
           reorder_point?: number
           sku?: string | null
           supplier_id?: string | null
           unit_of_measure?:
-            | Database["public"]["Enums"]["unit_of_measure_enum"]
-            | null
+          | Database["public"]["Enums"]["unit_of_measure_enum"]
+          | null
           updated_at?: string | null
         }
         Update: {
@@ -1729,14 +1762,14 @@ export type Database = {
           is_active?: boolean
           name?: string
           product_category?:
-            | Database["public"]["Enums"]["product_category_enum"]
-            | null
+          | Database["public"]["Enums"]["product_category_enum"]
+          | null
           reorder_point?: number
           sku?: string | null
           supplier_id?: string | null
           unit_of_measure?:
-            | Database["public"]["Enums"]["unit_of_measure_enum"]
-            | null
+          | Database["public"]["Enums"]["unit_of_measure_enum"]
+          | null
           updated_at?: string | null
         }
         Relationships: [
@@ -1951,6 +1984,99 @@ export type Database = {
           },
         ]
       }
+      report_runs: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          export_format: string
+          file_url: string | null
+          granularity: string
+          id: string
+          metric: string
+          report_name: string
+          requested_by: string | null
+          row_count: number | null
+          status: string
+          timeframe: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          export_format?: string
+          file_url?: string | null
+          granularity?: string
+          id?: string
+          metric: string
+          report_name: string
+          requested_by?: string | null
+          row_count?: number | null
+          status?: string
+          timeframe: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          export_format?: string
+          file_url?: string | null
+          granularity?: string
+          id?: string
+          metric?: string
+          report_name?: string
+          requested_by?: string | null
+          row_count?: number | null
+          status?: string
+          timeframe?: string
+        }
+        Relationships: []
+      }
+      report_schedules: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          export_format: string
+          id: string
+          is_active: boolean
+          last_run_at: string | null
+          metric: string
+          next_run_at: string | null
+          recipients: string[]
+          report_name: string
+          schedule_cron: string
+          timeframe: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          export_format?: string
+          id?: string
+          is_active?: boolean
+          last_run_at?: string | null
+          metric: string
+          next_run_at?: string | null
+          recipients?: string[]
+          report_name: string
+          schedule_cron: string
+          timeframe?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          export_format?: string
+          id?: string
+          is_active?: boolean
+          last_run_at?: string | null
+          metric?: string
+          next_run_at?: string | null
+          recipients?: string[]
+          report_name?: string
+          schedule_cron?: string
+          timeframe?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       restock_tasks: {
         Row: {
           assigned_to: string | null
@@ -2126,65 +2252,95 @@ export type Database = {
           },
         ]
       }
-      shift_schedules: {
+      shift_dictionary: {
         Row: {
-          assigned_zone_id: string | null
-          created_at: string
-          created_by: string | null
-          current_zone_id: string | null
-          end_time: string
+          code: string
+          color: string | null
+          end_time: string | null
           id: string
-          last_scanned_at: string | null
-          notes: string | null
-          shift_date: string
-          staff_record_id: string
-          start_time: string
-          status: Database["public"]["Enums"]["shift_status"]
-          updated_at: string | null
+          is_day_off: boolean
+          start_time: string | null
         }
         Insert: {
-          assigned_zone_id?: string | null
-          created_at?: string
-          created_by?: string | null
-          current_zone_id?: string | null
-          end_time: string
+          code: string
+          color?: string | null
+          end_time?: string | null
           id?: string
-          last_scanned_at?: string | null
-          notes?: string | null
-          shift_date: string
-          staff_record_id: string
-          start_time: string
-          status?: Database["public"]["Enums"]["shift_status"]
-          updated_at?: string | null
+          is_day_off?: boolean
+          start_time?: string | null
         }
         Update: {
-          assigned_zone_id?: string | null
-          created_at?: string
-          created_by?: string | null
-          current_zone_id?: string | null
-          end_time?: string
+          code?: string
+          color?: string | null
+          end_time?: string | null
           id?: string
-          last_scanned_at?: string | null
-          notes?: string | null
+          is_day_off?: boolean
+          start_time?: string | null
+        }
+        Relationships: []
+      }
+      shift_schedules: {
+        Row: {
+          actual_hours: number | null
+          clock_in: string | null
+          clock_in_photo: string | null
+          clock_out: string | null
+          clock_out_photo: string | null
+          created_at: string | null
+          expected_end_time: string | null
+          expected_start_time: string | null
+          id: string
+          justified_hours: number | null
+          linked_leave_id: string | null
+          shift_date: string
+          shift_dictionary_id: string | null
+          staff_record_id: string | null
+        }
+        Insert: {
+          actual_hours?: number | null
+          clock_in?: string | null
+          clock_in_photo?: string | null
+          clock_out?: string | null
+          clock_out_photo?: string | null
+          created_at?: string | null
+          expected_end_time?: string | null
+          expected_start_time?: string | null
+          id?: string
+          justified_hours?: number | null
+          linked_leave_id?: string | null
+          shift_date: string
+          shift_dictionary_id?: string | null
+          staff_record_id?: string | null
+        }
+        Update: {
+          actual_hours?: number | null
+          clock_in?: string | null
+          clock_in_photo?: string | null
+          clock_out?: string | null
+          clock_out_photo?: string | null
+          created_at?: string | null
+          expected_end_time?: string | null
+          expected_start_time?: string | null
+          id?: string
+          justified_hours?: number | null
+          linked_leave_id?: string | null
           shift_date?: string
-          staff_record_id?: string
-          start_time?: string
-          status?: Database["public"]["Enums"]["shift_status"]
-          updated_at?: string | null
+          shift_dictionary_id?: string | null
+          staff_record_id?: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "shift_schedules_assigned_zone_id_fkey"
-            columns: ["assigned_zone_id"]
+            foreignKeyName: "shift_schedules_linked_leave_id_fkey"
+            columns: ["linked_leave_id"]
             isOneToOne: false
-            referencedRelation: "zones"
+            referencedRelation: "leave_requests"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "shift_schedules_current_zone_id_fkey"
-            columns: ["current_zone_id"]
+            foreignKeyName: "shift_schedules_shift_dictionary_id_fkey"
+            columns: ["shift_dictionary_id"]
             isOneToOne: false
-            referencedRelation: "zones"
+            referencedRelation: "shift_dictionary"
             referencedColumns: ["id"]
           },
           {
@@ -2221,8 +2377,8 @@ export type Database = {
           terminated_at: string | null
           terminated_by: string | null
           termination_reason:
-            | Database["public"]["Enums"]["termination_reason"]
-            | null
+          | Database["public"]["Enums"]["termination_reason"]
+          | null
           updated_at: string | null
           user_id: string | null
         }
@@ -2250,8 +2406,8 @@ export type Database = {
           terminated_at?: string | null
           terminated_by?: string | null
           termination_reason?:
-            | Database["public"]["Enums"]["termination_reason"]
-            | null
+          | Database["public"]["Enums"]["termination_reason"]
+          | null
           updated_at?: string | null
           user_id?: string | null
         }
@@ -2279,8 +2435,8 @@ export type Database = {
           terminated_at?: string | null
           terminated_by?: string | null
           termination_reason?:
-            | Database["public"]["Enums"]["termination_reason"]
-            | null
+          | Database["public"]["Enums"]["termination_reason"]
+          | null
           updated_at?: string | null
           user_id?: string | null
         }
@@ -2336,6 +2492,63 @@ export type Database = {
         }
         Relationships: []
       }
+      survey_responses: {
+        Row: {
+          booking_id: string | null
+          channel: string | null
+          created_at: string
+          feedback_text: string | null
+          guest_id: string | null
+          id: string
+          keywords: string[] | null
+          nps_score: number | null
+          overall_score: number | null
+          sentiment: string | null
+          survey_type: string
+        }
+        Insert: {
+          booking_id?: string | null
+          channel?: string | null
+          created_at?: string
+          feedback_text?: string | null
+          guest_id?: string | null
+          id?: string
+          keywords?: string[] | null
+          nps_score?: number | null
+          overall_score?: number | null
+          sentiment?: string | null
+          survey_type: string
+        }
+        Update: {
+          booking_id?: string | null
+          channel?: string | null
+          created_at?: string
+          feedback_text?: string | null
+          guest_id?: string | null
+          id?: string
+          keywords?: string[] | null
+          nps_score?: number | null
+          overall_score?: number | null
+          sentiment?: string | null
+          survey_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "survey_responses_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "survey_responses_guest_id_fkey"
+            columns: ["guest_id"]
+            isOneToOne: false
+            referencedRelation: "guest_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       system_audit_log: {
         Row: {
           action: string
@@ -2369,6 +2582,36 @@ export type Database = {
           new_values?: Json | null
           old_values?: Json | null
           performed_by?: string | null
+        }
+        Relationships: []
+      }
+      system_metrics: {
+        Row: {
+          id: string
+          metric_name: string
+          metric_value: number
+          recorded_at: string
+          source: string
+          tags: Json | null
+          unit: string
+        }
+        Insert: {
+          id?: string
+          metric_name: string
+          metric_value: number
+          recorded_at?: string
+          source?: string
+          tags?: Json | null
+          unit?: string
+        }
+        Update: {
+          id?: string
+          metric_name?: string
+          metric_value?: number
+          recorded_at?: string
+          source?: string
+          tags?: Json | null
+          unit?: string
         }
         Relationships: []
       }
@@ -2445,6 +2688,42 @@ export type Database = {
             columns: ["experience_id"]
             isOneToOne: false
             referencedRelation: "experiences"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      weekly_patterns: {
+        Row: {
+          day_of_week: number
+          id: string
+          shift_dictionary_id: string | null
+          staff_record_id: string | null
+        }
+        Insert: {
+          day_of_week: number
+          id?: string
+          shift_dictionary_id?: string | null
+          staff_record_id?: string | null
+        }
+        Update: {
+          day_of_week?: number
+          id?: string
+          shift_dictionary_id?: string | null
+          staff_record_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "weekly_patterns_shift_dictionary_id_fkey"
+            columns: ["shift_dictionary_id"]
+            isOneToOne: false
+            referencedRelation: "shift_dictionary"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "weekly_patterns_staff_record_id_fkey"
+            columns: ["staff_record_id"]
+            isOneToOne: false
+            referencedRelation: "staff_records"
             referencedColumns: ["id"]
           },
         ]
@@ -2609,127 +2888,164 @@ export type Database = {
         Args: { p_booking_ref: string }
         Returns: Json
       }
+      update_laf_status: {
+        Args: {
+          p_incident_id: string
+          p_new_category?: string
+          p_new_status: string
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       alert_severity: "low" | "medium" | "high" | "critical"
       alert_status: "open" | "resolved"
       alert_type:
-        | "auth_security"
-        | "broadcast"
-        | "system"
-        | "technical_maintenance"
+      | "auth_security"
+      | "broadcast"
+      | "system"
+      | "technical_maintenance"
       app_role: "guest" | "crew" | "management" | "admin"
       audit_request_status: "pending" | "completed" | "recount_required"
       booking_status:
-        | "pending"
-        | "confirmed"
-        | "checked_in"
-        | "completed"
-        | "cancelled"
-        | "refunded"
+      | "pending"
+      | "confirmed"
+      | "checked_in"
+      | "completed"
+      | "cancelled"
+      | "refunded"
       campaign_status: "draft" | "active" | "completed" | "archived"
       check_in_status: "on_time" | "late"
       device_status: "online" | "offline" | "maintenance" | "decommissioned"
       employment_status:
-        | "active"
-        | "pending"
-        | "on_leave"
-        | "suspended"
-        | "terminated"
+      | "active"
+      | "pending"
+      | "on_leave"
+      | "suspended"
+      | "terminated"
+      exception_status: "unresolved" | "justified" | "unjustified"
+      exception_type:
+      | "late_arrival"
+      | "early_departure"
+      | "missing_checkin"
+      | "missing_checkout"
+      | "absent"
       fnb_menu_category_enum:
-        | "hot_food"
-        | "snacks_and_sides"
-        | "hot_beverage"
-        | "cold_beverage"
-        | "bakery_and_dessert"
-        | "combos"
-        | "uncategorized"
-      fnb_order_status: "pending" | "preparing" | "completed"
+      | "hot_food"
+      | "snacks_and_sides"
+      | "hot_beverage"
+      | "cold_beverage"
+      | "bakery_and_dessert"
+      | "combos"
+      | "uncategorized"
+      fnb_order_status: "preparing" | "completed" | "cancelled"
       fulfillment_type_enum: "direct_link" | "recipe_bom"
       iam_request_status:
-        | "pending_hr"
-        | "pending_it"
-        | "approved"
-        | "rejected"
-        | "executed"
+      | "pending_hr"
+      | "pending_it"
+      | "approved"
+      | "rejected"
+      | "executed"
       iam_request_type: "provisioning" | "transfer" | "termination"
       incident_category:
-        | "biohazard"
-        | "altercation"
-        | "medical"
-        | "equipment"
-        | "safety"
-        | "spill"
-        | "guest_complaint"
-        | "fire"
-        | "structural"
-        | "power_outage"
+      | "biohazard"
+      | "altercation"
+      | "medical"
+      | "equipment"
+      | "safety"
+      | "spill"
+      | "guest_complaint"
+      | "fire"
+      | "structural"
+      | "power_outage"
+      | "lost_property"
+      | "found_property"
+      | "lost_child"
+      | "ticketing_issue"
+      | "crowd_congestion"
+      | "other"
+      | "theft"
+      | "damaged_merchandise"
+      | "pos_failure"
+      | "contaminated_food"
+      | "food_waste"
+      | "damaged_in_transit"
+      | "missing_items"
+      | "vehicle_issue"
+      | "vip_issue"
+      | "schedule_delay"
+      | "prop_damage"
+      | "guest_injury"
+      | "lost_and_found"
+      | "lost_report"
+      | "found_report"
       incident_status: "open" | "resolved"
+      leave_status: "pending" | "approved" | "rejected"
+      leave_type: "annual" | "medical" | "emergency" | "unpaid"
       maintenance_priority: "low" | "medium" | "high" | "critical"
       maintenance_wo_status:
-        | "open"
-        | "assigned"
-        | "in_progress"
-        | "completed"
-        | "cancelled"
-        | "pending_mac"
-        | "active_mab"
-        | "revoked"
+      | "open"
+      | "assigned"
+      | "in_progress"
+      | "completed"
+      | "cancelled"
+      | "pending_mac"
+      | "active_mab"
+      | "revoked"
       menu_item_category: "prepared_item" | "prepackaged" | "retail" | "drink"
       menu_item_status: "available" | "out_of_stock"
       po_status:
-        | "pending"
-        | "sent"
-        | "partially_received"
-        | "completed"
-        | "cancelled"
+      | "pending"
+      | "sent"
+      | "partially_received"
+      | "completed"
+      | "cancelled"
       prep_batch_status: "in_progress" | "cooling" | "completed"
       product_category_enum:
-        | "raw_ingredient"
-        | "prepackaged_fnb"
-        | "retail_merch"
-        | "consumable"
+      | "raw_ingredient"
+      | "prepackaged_fnb"
+      | "retail_merch"
+      | "consumable"
       promo_status: "draft" | "active" | "paused" | "expired"
       restock_priority: "normal" | "high" | "critical"
       restock_status: "pending" | "in_progress" | "completed"
-      shift_status: "scheduled" | "active" | "completed" | "missed" | "swapped"
       staff_role:
-        | "it_admin"
-        | "business_admin"
-        | "fnb_manager"
-        | "merch_manager"
-        | "maintenance_manager"
-        | "inventory_manager"
-        | "marketing_manager"
-        | "human_resources_manager"
-        | "compliance_manager"
-        | "operations_manager"
-        | "fnb_crew"
-        | "service_crew"
-        | "giftshop_crew"
-        | "runner_crew"
-        | "security_crew"
-        | "health_crew"
-        | "cleaning_crew"
-        | "experience_crew"
-        | "internal_maintainence_crew"
+      | "it_admin"
+      | "business_admin"
+      | "fnb_manager"
+      | "merch_manager"
+      | "maintenance_manager"
+      | "inventory_manager"
+      | "marketing_manager"
+      | "human_resources_manager"
+      | "compliance_manager"
+      | "operations_manager"
+      | "fnb_crew"
+      | "service_crew"
+      | "giftshop_crew"
+      | "runner_crew"
+      | "security_crew"
+      | "health_crew"
+      | "cleaning_crew"
+      | "experience_crew"
+      | "internal_maintainence_crew"
       termination_reason:
-        | "resignation"
-        | "contract_expired"
-        | "misconduct"
-        | "other"
+      | "resignation"
+      | "contract_expired"
+      | "misconduct"
+      | "other"
       transfer_status:
-        | "draft"
-        | "pending_runner"
-        | "in_transit"
-        | "completed"
-        | "cancelled"
+      | "draft"
+      | "pending_runner"
+      | "in_transit"
+      | "completed"
+      | "cancelled"
       unit_of_measure_enum: "piece" | "kg" | "liter" | "box" | "pack"
       waste_reason:
-        | "expired_eod"
-        | "dropped_spilled"
-        | "contaminated"
-        | "prep_error"
+      | "expired_eod"
+      | "dropped_spilled"
+      | "contaminated"
+      | "prep_error"
       wo_status: "draft" | "scheduled" | "active" | "completed" | "revoked"
       wo_topology: "remote" | "onsite"
     }
@@ -2745,116 +3061,116 @@ type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
 
 export type Tables<
   DefaultSchemaTableNameOrOptions extends
-    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
-    | { schema: keyof DatabaseWithoutInternals },
+  | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+  | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
-        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+  ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+    DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
+  : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
   ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
-      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+    DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
       Row: infer R
     }
-    ? R
-    : never
+  ? R
+  : never
   : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
-        DefaultSchema["Views"])
-    ? (DefaultSchema["Tables"] &
-        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
-        Row: infer R
-      }
-      ? R
-      : never
-    : never
+    DefaultSchema["Views"])
+  ? (DefaultSchema["Tables"] &
+    DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+      Row: infer R
+    }
+  ? R
+  : never
+  : never
 
 export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
-    | keyof DefaultSchema["Tables"]
-    | { schema: keyof DatabaseWithoutInternals },
+  | keyof DefaultSchema["Tables"]
+  | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+  ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+  : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
   ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
-      Insert: infer I
-    }
-    ? I
-    : never
+    Insert: infer I
+  }
+  ? I
+  : never
   : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
-    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
-        Insert: infer I
-      }
-      ? I
-      : never
-    : never
+  ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+    Insert: infer I
+  }
+  ? I
+  : never
+  : never
 
 export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
-    | keyof DefaultSchema["Tables"]
-    | { schema: keyof DatabaseWithoutInternals },
+  | keyof DefaultSchema["Tables"]
+  | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+  ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+  : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
   ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
-      Update: infer U
-    }
-    ? U
-    : never
+    Update: infer U
+  }
+  ? U
+  : never
   : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
-    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
-        Update: infer U
-      }
-      ? U
-      : never
-    : never
+  ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+    Update: infer U
+  }
+  ? U
+  : never
+  : never
 
 export type Enums<
   DefaultSchemaEnumNameOrOptions extends
-    | keyof DefaultSchema["Enums"]
-    | { schema: keyof DatabaseWithoutInternals },
+  | keyof DefaultSchema["Enums"]
+  | { schema: keyof DatabaseWithoutInternals },
   EnumName extends DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+  ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
+  : never = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
   ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
   : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
-    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
-    : never
+  ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
+  : never
 
 export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
-    | keyof DefaultSchema["CompositeTypes"]
-    | { schema: keyof DatabaseWithoutInternals },
+  | keyof DefaultSchema["CompositeTypes"]
+  | { schema: keyof DatabaseWithoutInternals },
   CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+  ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+  : never = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
   ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
   : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
-    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
-    : never
+  ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+  : never
 
 export const Constants = {
   public: {
@@ -2887,6 +3203,14 @@ export const Constants = {
         "suspended",
         "terminated",
       ],
+      exception_status: ["unresolved", "justified", "unjustified"],
+      exception_type: [
+        "late_arrival",
+        "early_departure",
+        "missing_checkin",
+        "missing_checkout",
+        "absent",
+      ],
       fnb_menu_category_enum: [
         "hot_food",
         "snacks_and_sides",
@@ -2896,7 +3220,7 @@ export const Constants = {
         "combos",
         "uncategorized",
       ],
-      fnb_order_status: ["pending", "preparing", "completed"],
+      fnb_order_status: ["preparing", "completed", "cancelled"],
       fulfillment_type_enum: ["direct_link", "recipe_bom"],
       iam_request_status: [
         "pending_hr",
@@ -2917,8 +3241,31 @@ export const Constants = {
         "fire",
         "structural",
         "power_outage",
+        "lost_property",
+        "found_property",
+        "lost_child",
+        "ticketing_issue",
+        "crowd_congestion",
+        "other",
+        "theft",
+        "damaged_merchandise",
+        "pos_failure",
+        "contaminated_food",
+        "food_waste",
+        "damaged_in_transit",
+        "missing_items",
+        "vehicle_issue",
+        "vip_issue",
+        "schedule_delay",
+        "prop_damage",
+        "guest_injury",
+        "lost_and_found",
+        "lost_report",
+        "found_report",
       ],
       incident_status: ["open", "resolved"],
+      leave_status: ["pending", "approved", "rejected"],
+      leave_type: ["annual", "medical", "emergency", "unpaid"],
       maintenance_priority: ["low", "medium", "high", "critical"],
       maintenance_wo_status: [
         "open",
@@ -2949,7 +3296,6 @@ export const Constants = {
       promo_status: ["draft", "active", "paused", "expired"],
       restock_priority: ["normal", "high", "critical"],
       restock_status: ["pending", "in_progress", "completed"],
-      shift_status: ["scheduled", "active", "completed", "missed", "swapped"],
       staff_role: [
         "it_admin",
         "business_admin",

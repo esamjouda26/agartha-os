@@ -31,7 +31,6 @@ const ALL_STAFF_ROLES = [
 interface StaffUser {
   id: string;
   display_name: string | null;
-  app_role: string;
   staff_role: string | null;
   is_mfa_enabled: boolean;
   is_locked: boolean;

@@ -264,6 +264,99 @@ export async function fetchCrewForDeploymentAction(date: string) {
   };
 }
 
+export async function setOpsDailyOverrideAction(staffId: string, date: string, dictId: string | null) {
+  const caller = await requireRole("management");
+  if (!caller) throw new Error("UNAUTHORIZED");
+
+  const supabase = await createClient();
+  
+  // Verification bounds against rigid Role
+  const { data: targetStaff } = await supabase.from("staff_records").select("role").eq("id", staffId).single();
+  if (!targetStaff) throw new Error("Staff record geometry invalid");
+  
+  const CREW_ROLES = ["fnb_crew", "service_crew", "giftshop_crew", "runner_crew", "security_crew", "health_crew", "cleaning_crew", "experience_crew", "internal_maintainence_crew"];
+  if (!CREW_ROLES.includes(targetStaff.role)) {
+    throw new Error("Operations protocol limits structural alteration rights strictly to standard personnel parameters. Non-crew architectures must be delegated back to HR authorization bounds.");
+  }
+
+  let expStart = null;
+  let expEnd = null;
+  if (dictId) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: d } = await (supabase.from as any)("shift_dictionary").select("start_time, end_time").eq("id", dictId).single();
+    if (d) { expStart = d.start_time; expEnd = d.end_time; }
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: existing } = await (supabase.from as any)("shift_schedules").select("id").match({ staff_record_id: staffId, shift_date: date }).single();
+
+  const payload: any = {
+    staff_record_id: staffId,
+    shift_date: date,
+    shift_dictionary_id: dictId,
+    expected_start_time: expStart,
+    expected_end_time: expEnd,
+  };
+  
+  if (existing) {
+    payload.id = existing.id;
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase.from as any)("shift_schedules").upsert(payload, { onConflict: "staff_record_id, shift_date" });
+  if (error) throw new Error(error.message);
+  
+  revalidatePath("/management/operations/crew-deployment");
+  return { success: true };
+}
+
+export async function bulkSetOpsDailyOverrideAction(staffIds: string[], date: string, dictId: string | null) {
+  const caller = await requireRole("management");
+  if (!caller) throw new Error("UNAUTHORIZED");
+
+  const supabase = await createClient();
+  
+  const { data: targetStaff } = await supabase.from("staff_records").select("role").in("id", staffIds);
+  if (!targetStaff || targetStaff.length === 0) return { success: true };
+  
+  const CREW_ROLES = ["fnb_crew", "service_crew", "giftshop_crew", "runner_crew", "security_crew", "health_crew", "cleaning_crew", "experience_crew", "internal_maintainence_crew"];
+  const invalid = targetStaff.some((s: any) => !CREW_ROLES.includes(s.role));
+  if (invalid) {
+    throw new Error("Operations protocol limits structural alteration rights strictly to standard personnel parameters. Non-crew architectures must be delegated back to HR authorization bounds.");
+  }
+
+  let expStart = null;
+  let expEnd = null;
+  if (dictId) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: d } = await (supabase.from as any)("shift_dictionary").select("start_time, end_time").eq("id", dictId).single();
+    if (d) { expStart = d.start_time; expEnd = d.end_time; }
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: existing } = await (supabase.from as any)("shift_schedules").select("id, staff_record_id").in("staff_record_id", staffIds).eq("shift_date", date);
+  const existingMap = new Map((existing || []).map((e: any) => [e.staff_record_id, e.id]));
+
+  const payloads = staffIds.map(staffId => {
+    const payload: any = {
+      staff_record_id: staffId,
+      shift_date: date,
+      shift_dictionary_id: dictId,
+      expected_start_time: expStart,
+      expected_end_time: expEnd,
+    };
+    if (existingMap.has(staffId)) payload.id = existingMap.get(staffId);
+    return payload;
+  });
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase.from as any)("shift_schedules").upsert(payloads, { onConflict: "staff_record_id, shift_date" });
+  if (error) throw new Error(error.message);
+  
+  revalidatePath("/management/operations/crew-deployment");
+  return { success: true };
+}
+
 export async function assignCrewToZoneAction(shiftId: string, zoneId: string | null) {
   const caller = await requireRole("management");
   if (!caller) return { success: false, error: "FORBIDDEN" };

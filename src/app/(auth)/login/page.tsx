@@ -108,7 +108,7 @@ export default function StaffLoginPage() {
       compliance_manager:       "/management/hr-roster",
       operations_manager:       "/management/operations/telemetry",
     };
-    router.push(ROLE_HOME[role ?? ""] ?? "/crew/check-in");
+    router.push(ROLE_HOME[role ?? ""] ?? "/crew/zone-check-in");
   }
 
   return (

@@ -4,7 +4,7 @@ import CrewLayoutClient from "./crew-layout-client";
 
 export const metadata: Metadata = {
   title: "Crew Operations — AgarthaOS",
-  description: "Frontline crew operations: ticket scanning, F&B POS, zone check-ins, and tools.",
+  description: "Frontline crew operations and tools.",
 };
 
 export default async function CrewLayout({

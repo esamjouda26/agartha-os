@@ -2,11 +2,14 @@
 
 import { useState, useMemo, useTransition } from "react";
 import {
-  UserPlus, Search, MoreHorizontal, Pencil, ArrowRightLeft,
-  UserX, X, Lock, Eye, EyeOff, Copy, ChevronLeft, ChevronRight,
+  UserPlus, MoreHorizontal, Pencil, ArrowRightLeft,
+  UserX, X, Lock, Eye, EyeOff, Copy,
   ShieldCheck, CheckCircle2, AlertOctagon, Loader2
 } from "lucide-react";
 import DomainAuditTable from "@/components/DomainAuditTable";
+import { DataTable, TableHeader, TableBody, TableRow, TableCell, TableHead, TableHeadSortable, TableToolbar, TablePagination, TableEmptyState } from "@/components/ui/data-table";
+import { RoleFilterDropdown, StatusFilterDropdown, ROLES, ROLE_GROUPS } from "@/components/ui/data-table/filters";
+import { useDataTable } from "@/hooks/useDataTable";
 import { 
   createStaffRecordAction, 
   updateStaffRecordAction, 
@@ -14,36 +17,22 @@ import {
   terminateStaffAction 
 } from "./actions";
 
-const ROLES: Record<string, string> = {
-  it_admin: "IT Admin", business_admin: "Business Admin",
-  fnb_manager: "F&B Manager", merch_manager: "Merch Manager", maintenance_manager: "Maintenance Manager",
-  inventory_manager: "Inventory Manager", marketing_manager: "Marketing Manager",
-  human_resources_manager: "HR Manager", compliance_manager: "Compliance Manager", operations_manager: "Operations Manager",
-  fnb_crew: "F&B Crew", service_crew: "Service Crew", giftshop_crew: "Giftshop Crew",
-  runner_crew: "Runner Crew", security_crew: "Security Crew", health_crew: "Health Crew",
-  cleaning_crew: "Cleaning Crew", experience_crew: "Experience Crew", internal_maintainence_crew: "Internal Maintenance Crew",
-};
 
-const ROLE_GROUPS = {
-  ADMIN: ["it_admin", "business_admin"],
-  MANAGEMENT: ["fnb_manager", "merch_manager", "maintenance_manager", "inventory_manager", "marketing_manager", "human_resources_manager", "compliance_manager", "operations_manager"],
-  CREW: ["fnb_crew", "service_crew", "giftshop_crew", "runner_crew", "security_crew", "health_crew", "cleaning_crew", "experience_crew", "internal_maintainence_crew"],
-};
 
 const STATUSES: Record<string, string> = { active: "ACTIVE", pending: "PENDING", on_leave: "ON LEAVE", suspended: "SUSPENDED", terminated: "TERMINATED" };
 
 const STATUS_STYLES: Record<string, string> = {
-  active: "bg-green-500/12 text-green-400 border-green-500/30",
-  pending: "bg-amber-400/12 text-amber-400 border-amber-400/30",
-  on_leave: "bg-blue-400/12 text-blue-400 border-blue-400/30",
-  suspended: "bg-orange-500/12 text-orange-500 border-orange-500/30",
-  terminated: "bg-red-500/12 text-red-500 border-red-500/30",
+  active: "bg-green-500/10 border-green-500/20 text-green-400",
+  suspended: "bg-red-500/10 border-red-500/20 text-red-400",
+  terminated: "bg-gray-500/10 border-gray-500/20 text-gray-500",
+  on_leave: "bg-yellow-500/10 border-yellow-500/20 text-yellow-400",
+  pending: "bg-amber-500/10 border-amber-500/20 text-amber-400",
 };
 
 function roleColor(role: string) {
-  if (role?.endsWith("_admin")) return "bg-fuchsia-500/15 text-fuchsia-400 border-fuchsia-500/30";
-  if (role?.endsWith("_manager")) return "bg-amber-500/15 text-amber-400 border-amber-500/30";
-  return "bg-sky-500/15 text-sky-400 border-sky-500/30";
+  if (role?.endsWith("_admin")) return "bg-fuchsia-500/10 border-fuchsia-500/20 text-fuchsia-400";
+  if (role?.endsWith("_manager")) return "bg-amber-500/10 border-amber-500/20 text-amber-400";
+  return "bg-sky-500/10 border-sky-500/20 text-sky-400";
 }
 
 interface Employee {
@@ -73,7 +62,6 @@ export default function HrRosterClient({ initialEmployees }: { initialEmployees:
   const [search, setSearch] = useState("");
   const [filterRoles, setFilterRoles] = useState<string[]>([]);
   const [filterStatuses, setFilterStatuses] = useState<string[]>([]);
-  const [page, setPage] = useState(1);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -104,8 +92,7 @@ export default function HrRosterClient({ initialEmployees }: { initialEmployees:
     });
   }, [employees, search, filterRoles, filterStatuses]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const pageData = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const { page, setPage, totalPages, pageData, pageSize, setPageSize, sortKey, sortOrder, toggleSort } = useDataTable(filtered, 10, "name", "asc");
 
   function openEdit(emp: Employee | null) {
     if (emp) { setEditModal({ ...emp }); setIsCreating(false); }
@@ -208,105 +195,66 @@ export default function HrRosterClient({ initialEmployees }: { initialEmployees:
         </button>
       </div>
 
-      <div className="glass-panel rounded-lg p-4 flex flex-col md:flex-row items-start md:items-center gap-4 relative z-20">
-        <div className="flex-1 relative">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
-          <input type="text" value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-            placeholder="Search by Name or Employee ID..."
-            className="w-full bg-[#020408] border border-white/10 text-sm text-white rounded-md pl-10 pr-4 py-2 focus:outline-none focus:border-[rgba(212,175,55,0.5)] transition-all" />
-        </div>
-        <div className="relative">
-          <button onClick={() => { setShowRoleFilter(!showRoleFilter); setShowStatusFilter(false); }}
-            className="flex items-center gap-1 px-3 py-2 text-xs text-gray-400 border border-white/10 rounded-md hover:border-[rgba(212,175,55,0.3)] hover:text-[#d4af37] transition-all min-w-[160px]">
-            {filterRoles.length > 0 ? <span className="text-[#d4af37] font-semibold">{filterRoles.length} roles</span> : "Filter by Role..."}
-          </button>
-          {showRoleFilter && (
-            <div className="absolute top-full mt-1 right-0 z-40 bg-[rgba(10,20,30,0.97)] border border-white/10 rounded-md max-h-48 overflow-y-auto w-56 shadow-lg">
-              {Object.entries(ROLE_GROUPS).map(([group, roles]) => (
-                <div key={group}>
-                  <div className="px-2 py-1 text-[10px] font-bold text-gray-400 uppercase tracking-wider bg-[#020408]/80">{group}</div>
-                  {roles.map((r) => (
-                    <label key={r} className="flex items-center gap-2 px-3 py-1.5 text-xs text-gray-300 hover:bg-[rgba(212,175,55,0.08)] cursor-pointer">
-                      <input type="checkbox" checked={filterRoles.includes(r)} onChange={() => toggleFilterRole(r)} className="accent-[#d4af37]" />
-                      {ROLES[r]}
-                    </label>
-                  ))}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-        <div className="relative">
-          <button onClick={() => { setShowStatusFilter(!showStatusFilter); setShowRoleFilter(false); }}
-            className="flex items-center gap-1 px-3 py-2 text-xs text-gray-400 border border-white/10 rounded-md hover:border-[rgba(212,175,55,0.3)] hover:text-[#d4af37] transition-all min-w-[160px]">
-            {filterStatuses.length > 0 ? <span className="text-[#d4af37] font-semibold">{filterStatuses.length} statuses</span> : "Filter by Status..."}
-          </button>
-          {showStatusFilter && (
-            <div className="absolute top-full mt-1 right-0 z-40 bg-[rgba(10,20,30,0.97)] border border-white/10 rounded-md w-48 shadow-lg">
-              {Object.entries(STATUSES).map(([k, v]) => (
-                <label key={k} className="flex items-center gap-2 px-3 py-1.5 text-xs text-gray-300 hover:bg-[rgba(212,175,55,0.08)] cursor-pointer">
-                  <input type="checkbox" checked={filterStatuses.includes(k)} onChange={() => toggleFilterStatus(k)} className="accent-[#d4af37]" />
-                  {v}
-                </label>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
+      <div className="glass-panel rounded-xl flex flex-col overflow-hidden min-h-[520px] border border-white/5 shadow-[0_8px_30px_rgb(0,0,0,0.5)]">
+        <TableToolbar 
+           search={search} 
+           setSearch={(v: string) => { setSearch(v); setPage(1); }} 
+           searchPlaceholder="Search by Name or Employee ID..."
+           actions={(search || filterRoles.length > 0 || filterStatuses.length > 0) ? (
+             <button onClick={() => { setSearch(""); setFilterRoles([]); setFilterStatuses([]); setPage(1); }} className="text-[10px] uppercase font-bold tracking-wider text-red-400 hover:text-red-300 transition-colors px-2 py-1.5 rounded border border-red-400/20 hover:bg-red-400/10 whitespace-nowrap">
+               Clear Filters
+             </button>
+           ) : null}
+        >
+          <RoleFilterDropdown filterRoles={filterRoles} setFilterRoles={setFilterRoles} roleGroups={ROLE_GROUPS} rolesMap={ROLES} />
+          <StatusFilterDropdown filterStatuses={filterStatuses} setFilterStatuses={setFilterStatuses} statusesMap={STATUSES} />
+        </TableToolbar>
 
-      <div className="glass-panel rounded-lg flex flex-col overflow-hidden min-h-[520px]">
-        <div className="overflow-x-auto flex-1">
-          <table className="w-full text-left text-sm whitespace-nowrap">
-            <thead className="text-[10px] text-gray-500 uppercase tracking-wider bg-[#010204] sticky top-0 z-10 border-b border-white/10">
-              <tr>
-                {["Employee ID", "Legal Name", "Role", "Employment Term", "Status", "Actions"].map((h) => (
-                  <th key={h} className={`px-5 py-3.5 font-semibold ${h === "Actions" ? "text-right" : ""}`}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-white/5">
-              {pageData.length === 0 ? (
-                <tr><td colSpan={6} className="text-center py-16 text-gray-600 text-sm">No employees match your filters.</td></tr>
-              ) : pageData.map((emp) => (
-                <tr key={emp.id} className={`hover:bg-white/[0.02] transition-colors border-l-2 ${isPending ? "opacity-50" : ""} border-transparent hover:border-l-[#d4af37] group`}>
-                  <td className="px-5 py-3.5">
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono text-xs text-gray-300">{emp.employeeId}</span>
-                      <button onClick={() => { navigator.clipboard.writeText(emp.employeeId); showToastMsg("ID copied."); }} className="text-gray-600 hover:text-[#d4af37] transition-colors opacity-0 group-hover:opacity-100"><Copy className="w-3 h-3" /></button>
-                    </div>
-                  </td>
-                  <td className="px-5 py-3.5 text-sm text-white font-medium">{emp.name}</td>
-                  <td className="px-5 py-3.5"><span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${roleColor(emp.role)}`}>{ROLES[emp.role] || emp.role}</span></td>
-                  <td className="px-5 py-3.5 text-xs text-gray-400 font-mono">{emp.endDate ? `${emp.startDate} → ${emp.endDate}` : <span className="text-white">Permanent</span>}</td>
-                  <td className="px-5 py-3.5"><span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${STATUS_STYLES[emp.status] ?? ""}`}>{STATUSES[emp.status] || emp.status}</span></td>
-                  <td className="px-5 py-3.5 text-right">
-                    <div className="relative inline-block">
-                      <button onClick={() => setOpenMenuId(openMenuId === emp.id ? null : emp.id)} className="text-gray-500 hover:text-[#d4af37] transition-colors p-1.5 rounded hover:bg-[rgba(212,175,55,0.1)]"><MoreHorizontal className="w-4 h-4" /></button>
-                      {openMenuId === emp.id && (
-                        <div className="absolute right-0 top-full z-30 min-w-[11rem] bg-[rgba(10,20,30,0.95)] border border-white/10 rounded-lg py-1 shadow-xl">
-                          <button onClick={() => openEdit(emp)} className="flex items-center gap-2 w-full px-3 py-2 text-xs text-gray-300 hover:bg-[rgba(212,175,55,0.1)] hover:text-[#d4af37]"><Pencil className="w-3.5 h-3.5" /> Edit Profile</button>
-                          <button onClick={() => openTransfer(emp)} className="flex items-center gap-2 w-full px-3 py-2 text-xs text-gray-300 hover:bg-[rgba(212,175,55,0.1)] hover:text-[#d4af37]"><ArrowRightLeft className="w-3.5 h-3.5" /> Transfer Role</button>
-                          <div className="my-1 border-t border-white/5" />
-                          <button onClick={() => openTerm(emp)} className="flex items-center gap-2 w-full px-3 py-2 text-xs text-red-400 hover:bg-red-500/10"><UserX className="w-3.5 h-3.5" /> Terminate Employee</button>
-                        </div>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        <div className="flex items-center justify-between px-5 py-3 border-t border-white/10 bg-[#010204]">
-          <span className="text-xs text-gray-500 font-mono">{filtered.length > 0 ? `Showing ${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, filtered.length)} of ${filtered.length} records` : "0 records"}</span>
-          <div className="flex items-center gap-1">
-            <button disabled={page <= 1} onClick={() => setPage((p) => p - 1)} className="p-1.5 text-gray-500 hover:text-[#d4af37] disabled:opacity-30 transition-colors"><ChevronLeft className="w-4 h-4" /></button>
-            {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-              <button key={p} onClick={() => setPage(p)} className={`px-3 py-1.5 text-xs rounded transition-all ${p === page ? "bg-[rgba(212,175,55,0.2)] text-[#d4af37] border border-[rgba(212,175,55,0.4)] font-bold" : "text-gray-400 hover:text-[#d4af37] hover:bg-[rgba(212,175,55,0.1)]"}`}>{p}</button>
+        <DataTable>
+          <TableHeader>
+            <tr>
+               <TableHeadSortable sortKey="employeeId" currentSortKey={sortKey} sortOrder={sortOrder} onSort={toggleSort}>Employee ID</TableHeadSortable>
+               <TableHeadSortable sortKey="name" currentSortKey={sortKey} sortOrder={sortOrder} onSort={toggleSort}>Legal Name</TableHeadSortable>
+               <TableHeadSortable sortKey="role" currentSortKey={sortKey} sortOrder={sortOrder} onSort={toggleSort}>Role</TableHeadSortable>
+               <TableHeadSortable sortKey="endDate" currentSortKey={sortKey} sortOrder={sortOrder} onSort={toggleSort}>Employment Term</TableHeadSortable>
+               <TableHeadSortable sortKey="status" currentSortKey={sortKey} sortOrder={sortOrder} onSort={toggleSort}>Status</TableHeadSortable>
+               <TableHead className="text-right">Actions</TableHead>
+            </tr>
+          </TableHeader>
+          <TableBody>
+            {pageData.length === 0 ? (
+              <TableEmptyState colSpan={6} message="No employees match your current filters." />
+            ) : pageData.map((emp) => (
+              <TableRow key={emp.id} className={`${isPending ? "opacity-50" : ""} border-l-2 border-transparent hover:border-l-[#d4af37]`}>
+                <TableCell>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-xs text-gray-400">{emp.employeeId}</span>
+                    <button onClick={() => { navigator.clipboard.writeText(emp.employeeId); showToastMsg("ID copied."); }} className="text-gray-600 hover:text-[#d4af37] transition-colors opacity-0 group-hover:opacity-100"><Copy className="w-3 h-3" /></button>
+                  </div>
+                </TableCell>
+                <TableCell className="text-sm text-white font-medium tracking-wide">{emp.name}</TableCell>
+                <TableCell><span className={`text-[10px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-md border shadow-sm ${roleColor(emp.role)}`}>{ROLES[emp.role] || emp.role}</span></TableCell>
+                <TableCell className="text-xs text-gray-400 font-mono">{emp.endDate ? `${emp.startDate} → ${emp.endDate}` : <span className="text-white">Permanent</span>}</TableCell>
+                <TableCell><span className={`text-[10px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-md border shadow-sm ${STATUS_STYLES[emp.status] ?? ""}`}>{STATUSES[emp.status] || emp.status}</span></TableCell>
+                <TableCell className="text-right">
+                  <div className="relative inline-block">
+                    <button onClick={() => setOpenMenuId(openMenuId === emp.id ? null : emp.id)} className="text-gray-500 hover:text-[#d4af37] transition-colors p-1.5 rounded hover:bg-[rgba(212,175,55,0.1)]"><MoreHorizontal className="w-4 h-4" /></button>
+                    {openMenuId === emp.id && (
+                      <div className="absolute right-0 top-full mt-1 z-30 min-w-[11rem] bg-[rgba(10,20,30,0.95)] border border-white/10 rounded-lg py-1 shadow-xl text-left">
+                        <button onClick={() => openEdit(emp)} className="flex items-center gap-2 w-full px-3 py-2 text-xs text-gray-300 hover:bg-[rgba(212,175,55,0.1)] hover:text-[#d4af37]"><Pencil className="w-3.5 h-3.5" /> Edit Profile</button>
+                        <button onClick={() => openTransfer(emp)} className="flex items-center gap-2 w-full px-3 py-2 text-xs text-gray-300 hover:bg-[rgba(212,175,55,0.1)] hover:text-[#d4af37]"><ArrowRightLeft className="w-3.5 h-3.5" /> Transfer Role</button>
+                        <div className="my-1 border-t border-white/5" />
+                        <button onClick={() => openTerm(emp)} className="flex items-center gap-2 w-full px-3 py-2 text-xs text-red-400 hover:bg-red-500/10"><UserX className="w-3.5 h-3.5" /> Terminate</button>
+                      </div>
+                    )}
+                  </div>
+                </TableCell>
+              </TableRow>
             ))}
-            <button disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)} className="p-1.5 text-gray-500 hover:text-[#d4af37] disabled:opacity-30 transition-colors"><ChevronRight className="w-4 h-4" /></button>
-          </div>
-        </div>
+          </TableBody>
+        </DataTable>
+
+        <TablePagination page={page} setPage={setPage} totalPages={totalPages} totalRecords={filtered.length} pageSize={pageSize} setPageSize={setPageSize} />
       </div>
 
       <DomainAuditTable entityTypes={["staff_records"]} title="Staff Audit Trail" />
