@@ -3,19 +3,21 @@
 import { useState } from "react";
 import { UtensilsCrossed, CreditCard, Trash2, Plus, Minus, Tag, Banknote, ScanFace } from "lucide-react";
 import ItemSearchSelect, { SearchableItem } from "../../components/item-search-select";
+import CrewModal from "../../components/crew-modal";
 import { submitFnbOrder, validatePromoCode } from "../actions";
 
 export default function PosClient({ menuItems }: { menuItems: SearchableItem[] }) {
   const [cart, setCart] = useState<(SearchableItem & { quantity: number })[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
+
   // Promo Constraints
   const [promoInput, setPromoInput] = useState("");
   const [promoState, setPromoState] = useState<{ id: string, discount: number, description?: string | null } | null>(null);
   const [promoError, setPromoError] = useState("");
 
-  // Payment UI Architecture
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "card" | "face_id" | null>(null);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const subTotal = cart.reduce((sum, item) => sum + ((item.price || 0) * item.quantity), 0);
   const totalAmount = Math.max(0, subTotal - (promoState?.discount || 0));
@@ -51,10 +53,10 @@ export default function PosClient({ menuItems }: { menuItems: SearchableItem[] }
   async function applyPromo() {
     setPromoError("");
     if (!promoInput) return;
-    
+
     if (subTotal === 0) {
-       setPromoError("Cart is empty.");
-       return;
+      setPromoError("Cart is empty.");
+      return;
     }
 
     try {
@@ -72,26 +74,26 @@ export default function PosClient({ menuItems }: { menuItems: SearchableItem[] }
   async function handleCheckout() {
     if (cart.length === 0 || !paymentMethod) return;
     setIsSubmitting(true);
-    
+    setErrorMsg(null);
+    setSuccessMsg(null);
+
     try {
       const payload = cart.map(item => ({
         menu_item_id: item.id,
         quantity: item.quantity,
         unit_price: item.price || 0,
-        linked_product_id: item.raw?.linked_product_id || null
+        linked_product_id: (item.raw?.linked_product_id as string | null) ?? null,
       }));
 
-      await submitFnbOrder(payload, totalAmount, promoState?.id);
-      
+      await submitFnbOrder(payload, totalAmount, paymentMethod, promoState?.id);
+
       setCart([]);
       setPaymentMethod(null);
       setPromoState(null);
       setPromoInput("");
-      
-      alert(`Order fully settled via ${paymentMethod.toUpperCase()}`);
+      setSuccessMsg(`Order placed — paid via ${paymentMethod.replace("_", " ").toUpperCase()}`);
     } catch (err: any) {
-      alert("AUDIT FAILURE: " + err.message);
-      console.error(err);
+      setErrorMsg(err.message ?? "Order submission failed.");
     } finally {
       setIsSubmitting(false);
     }
@@ -102,7 +104,18 @@ export default function PosClient({ menuItems }: { menuItems: SearchableItem[] }
       <h1 className="text-2xl font-cinzel text-[#d4af37] font-bold px-2 flex items-center gap-2">
         <UtensilsCrossed className="w-6 h-6" /> F&B POS
       </h1>
-      
+
+      {successMsg && (
+        <div className="flex items-center gap-3 p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-sm text-emerald-300">
+          <span className="text-lg">✓</span> {successMsg}
+        </div>
+      )}
+      {errorMsg && (
+        <div className="flex items-center gap-3 p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-sm text-red-400">
+          <span className="text-lg">✗</span> {errorMsg}
+        </div>
+      )}
+
       <ItemSearchSelect items={menuItems} onSelect={handleSelectItem} placeholder="Search menu items..." disabled={isSubmitting} />
 
       <div className="glass-panel-gold p-4 rounded-2xl border border-white/10 flex flex-col space-y-4">
@@ -110,7 +123,7 @@ export default function PosClient({ menuItems }: { menuItems: SearchableItem[] }
           <h2 className="text-xs uppercase tracking-widest text-[#d4af37] font-bold">Current Cart</h2>
           <span className="text-xs font-mono text-gray-400">{cart.length} Items</span>
         </div>
-        
+
         <div className="max-h-[250px] overflow-y-auto space-y-2 pr-1">
           {cart.length === 0 ? (
             <div className="flex items-center justify-center h-20">
@@ -123,7 +136,7 @@ export default function PosClient({ menuItems }: { menuItems: SearchableItem[] }
                   <p className="text-white text-sm font-medium leading-tight">{item.name}</p>
                   <p className="text-[#d4af37] text-xs font-mono mt-0.5">${(item.price || 0).toFixed(2)}</p>
                 </div>
-                
+
                 <div className="flex items-center gap-3">
                   <div className="flex items-center bg-white/5 rounded-lg border border-white/10">
                     <button onClick={() => updateQuantity(item.id, -1)} className="p-1.5 text-gray-400 hover:text-white transition"><Minus className="w-4 h-4" /></button>
@@ -145,25 +158,25 @@ export default function PosClient({ menuItems }: { menuItems: SearchableItem[] }
             <Tag className="w-3 h-3" /> Promotions
           </label>
           <div className="flex gap-2">
-            <input 
-              type="text" 
-              placeholder="Promo Code" 
+            <input
+              type="text"
+              placeholder="Promo Code"
               value={promoInput}
               onChange={(e) => setPromoInput(e.target.value.toUpperCase())}
               disabled={isSubmitting || promoState !== null}
-              className="flex-1 bg-black/40 border border-white/10 text-white p-2 rounded-lg text-sm font-mono focus:border-[#d4af37] outline-none disabled:opacity-50 uppercase" 
+              className="flex-1 bg-black/40 border border-white/10 text-white p-2 rounded-lg text-sm font-mono focus:border-[#d4af37] outline-none disabled:opacity-50 uppercase"
             />
             {!promoState ? (
-              <button 
-                type="button" 
+              <button
+                type="button"
                 onClick={applyPromo}
                 className="bg-white/10 text-white px-4 rounded-lg text-sm font-bold hover:bg-white/20 transition active:scale-95 disabled:opacity-50"
               >
                 Apply
               </button>
             ) : (
-              <button 
-                type="button" 
+              <button
+                type="button"
                 onClick={() => { setPromoState(null); setPromoInput(""); }}
                 className="bg-red-500/20 text-red-400 px-4 rounded-lg text-sm font-bold hover:bg-red-500/30 transition active:scale-95"
               >
@@ -179,21 +192,21 @@ export default function PosClient({ menuItems }: { menuItems: SearchableItem[] }
         <div className="space-y-2">
           <label className="text-[10px] uppercase tracking-wider text-gray-400 font-bold align-middle">Checkout Method</label>
           <div className="grid grid-cols-3 gap-2">
-            <button 
+            <button
               onClick={() => setPaymentMethod("cash")}
               className={`p-3 rounded-xl border flex flex-col items-center justify-center gap-1 transition ${paymentMethod === 'cash' ? 'bg-[#d4af37]/20 border-[#d4af37] text-[#d4af37]' : 'bg-black/40 border-white/10 text-gray-400 hover:text-white'}`}
             >
               <Banknote className="w-5 h-5" />
               <span className="text-[10px] font-bold tracking-widest uppercase">Cash</span>
             </button>
-            <button 
+            <button
               onClick={() => setPaymentMethod("card")}
               className={`p-3 rounded-xl border flex flex-col items-center justify-center gap-1 transition ${paymentMethod === 'card' ? 'bg-[#d4af37]/20 border-[#d4af37] text-[#d4af37]' : 'bg-black/40 border-white/10 text-gray-400 hover:text-white'}`}
             >
               <CreditCard className="w-5 h-5" />
               <span className="text-[10px] font-bold tracking-widest uppercase">Card</span>
             </button>
-            <button 
+            <button
               onClick={() => setPaymentMethod("face_id")}
               className={`p-3 rounded-xl border flex flex-col items-center justify-center gap-1 transition ${paymentMethod === 'face_id' ? 'bg-[#d4af37]/20 border-[#d4af37] text-[#d4af37]' : 'bg-black/40 border-white/10 text-gray-400 hover:text-white'}`}
             >
@@ -202,7 +215,7 @@ export default function PosClient({ menuItems }: { menuItems: SearchableItem[] }
             </button>
           </div>
         </div>
-        
+
         <div className="border-t border-white/10 pt-4 mt-auto">
           <div className="flex justify-between items-center text-white font-bold text-lg mb-4 px-1">
             <span>Total</span>
@@ -211,7 +224,7 @@ export default function PosClient({ menuItems }: { menuItems: SearchableItem[] }
               <span className="font-mono text-[#d4af37]">${totalAmount.toFixed(2)}</span>
             </div>
           </div>
-          <button 
+          <button
             disabled={cart.length === 0 || !paymentMethod || isSubmitting}
             onClick={handleCheckout}
             className="w-full py-5 bg-gradient-to-r from-[#d4af37] to-[#806b45] text-space font-bold tracking-widest uppercase rounded-xl active:scale-[0.98] transition shadow-[0_4px_15px_rgba(212,175,55,0.3)] disabled:opacity-50 flex items-center justify-center gap-2"

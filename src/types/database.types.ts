@@ -76,6 +76,98 @@ export type Database = {
           },
         ]
       }
+      announcements: {
+        Row: {
+          body: string
+          created_at: string
+          created_by: string | null
+          expires_at: string | null
+          id: string
+          priority: string
+          target_roles: string[] | null
+          title: string
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string | null
+          id?: string
+          priority?: string
+          target_roles?: string[] | null
+          title: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string | null
+          id?: string
+          priority?: string
+          target_roles?: string[] | null
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "announcements_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      assets: {
+        Row: {
+          asset_type: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          name: string
+          serial_number: string | null
+          status: string
+          updated_at: string | null
+          zone_id: string | null
+        }
+        Insert: {
+          asset_type?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name: string
+          serial_number?: string | null
+          status?: string
+          updated_at?: string | null
+          zone_id?: string | null
+        }
+        Update: {
+          asset_type?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name?: string
+          serial_number?: string | null
+          status?: string
+          updated_at?: string | null
+          zone_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assets_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assets_zone_id_fkey"
+            columns: ["zone_id"]
+            isOneToOne: false
+            referencedRelation: "zones"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       attendance_discrepancies: {
         Row: {
           created_at: string | null
@@ -664,8 +756,8 @@ export type Database = {
           is_active: boolean | null
           linked_product_id: string | null
           menu_category:
-          | Database["public"]["Enums"]["fnb_menu_category_enum"]
-          | null
+            | Database["public"]["Enums"]["fnb_menu_category_enum"]
+            | null
           name: string
           unit_price: number | null
           updated_at: string | null
@@ -680,8 +772,8 @@ export type Database = {
           is_active?: boolean | null
           linked_product_id?: string | null
           menu_category?:
-          | Database["public"]["Enums"]["fnb_menu_category_enum"]
-          | null
+            | Database["public"]["Enums"]["fnb_menu_category_enum"]
+            | null
           name: string
           unit_price?: number | null
           updated_at?: string | null
@@ -696,8 +788,8 @@ export type Database = {
           is_active?: boolean | null
           linked_product_id?: string | null
           menu_category?:
-          | Database["public"]["Enums"]["fnb_menu_category_enum"]
-          | null
+            | Database["public"]["Enums"]["fnb_menu_category_enum"]
+            | null
           name?: string
           unit_price?: number | null
           updated_at?: string | null
@@ -708,47 +800,6 @@ export type Database = {
             columns: ["linked_product_id"]
             isOneToOne: false
             referencedRelation: "products"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      fnb_menu_pricing: {
-        Row: {
-          created_at: string
-          created_by: string | null
-          effective_from: string
-          effective_to: string | null
-          id: string
-          menu_item_id: string
-          price: number
-          tier_label: string
-        }
-        Insert: {
-          created_at?: string
-          created_by?: string | null
-          effective_from?: string
-          effective_to?: string | null
-          id?: string
-          menu_item_id: string
-          price: number
-          tier_label: string
-        }
-        Update: {
-          created_at?: string
-          created_by?: string | null
-          effective_from?: string
-          effective_to?: string | null
-          id?: string
-          menu_item_id?: string
-          price?: number
-          tier_label?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "fnb_menu_pricing_menu_item_id_fkey"
-            columns: ["menu_item_id"]
-            isOneToOne: false
-            referencedRelation: "fnb_menu_items"
             referencedColumns: ["id"]
           },
         ]
@@ -803,6 +854,9 @@ export type Database = {
           created_by: string | null
           id: string
           notes: string | null
+          payment_method:
+            | Database["public"]["Enums"]["payment_method_enum"]
+            | null
           prepared_by: string | null
           status: Database["public"]["Enums"]["fnb_order_status"]
           total_amount: number | null
@@ -816,6 +870,9 @@ export type Database = {
           created_by?: string | null
           id?: string
           notes?: string | null
+          payment_method?:
+            | Database["public"]["Enums"]["payment_method_enum"]
+            | null
           prepared_by?: string | null
           status?: Database["public"]["Enums"]["fnb_order_status"]
           total_amount?: number | null
@@ -829,6 +886,9 @@ export type Database = {
           created_by?: string | null
           id?: string
           notes?: string | null
+          payment_method?:
+            | Database["public"]["Enums"]["payment_method_enum"]
+            | null
           prepared_by?: string | null
           status?: Database["public"]["Enums"]["fnb_order_status"]
           total_amount?: number | null
@@ -841,56 +901,6 @@ export type Database = {
             columns: ["booking_id"]
             isOneToOne: false
             referencedRelation: "bookings"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      fnb_prep_batches: {
-        Row: {
-          batch_label: string | null
-          completed_at: string | null
-          created_at: string
-          id: string
-          internal_temp: number | null
-          menu_item_id: string
-          prepared_by: string | null
-          quantity: number
-          started_at: string
-          status: Database["public"]["Enums"]["prep_batch_status"]
-          updated_at: string | null
-        }
-        Insert: {
-          batch_label?: string | null
-          completed_at?: string | null
-          created_at?: string
-          id?: string
-          internal_temp?: number | null
-          menu_item_id: string
-          prepared_by?: string | null
-          quantity: number
-          started_at?: string
-          status?: Database["public"]["Enums"]["prep_batch_status"]
-          updated_at?: string | null
-        }
-        Update: {
-          batch_label?: string | null
-          completed_at?: string | null
-          created_at?: string
-          id?: string
-          internal_temp?: number | null
-          menu_item_id?: string
-          prepared_by?: string | null
-          quantity?: number
-          started_at?: string
-          status?: Database["public"]["Enums"]["prep_batch_status"]
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "fnb_prep_batches_menu_item_id_fkey"
-            columns: ["menu_item_id"]
-            isOneToOne: false
-            referencedRelation: "fnb_menu_items"
             referencedColumns: ["id"]
           },
         ]
@@ -1025,14 +1035,12 @@ export type Database = {
           created_at: string
           created_by: string | null
           current_role: Database["public"]["Enums"]["staff_role"] | null
-          hr_approved_at: string | null
-          hr_approved_by: string | null
+          hr_remark: string | null
           id: string
-          it_approved_at: string | null
-          it_approved_by: string | null
-          it_auth_note: string | null
-          justification: string | null
+          it_remark: string | null
           request_type: Database["public"]["Enums"]["iam_request_type"]
+          reviewed_at: string | null
+          reviewed_by: string | null
           staff_record_id: string | null
           status: Database["public"]["Enums"]["iam_request_status"]
           target_role: Database["public"]["Enums"]["staff_role"] | null
@@ -1042,14 +1050,12 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           current_role?: Database["public"]["Enums"]["staff_role"] | null
-          hr_approved_at?: string | null
-          hr_approved_by?: string | null
+          hr_remark?: string | null
           id?: string
-          it_approved_at?: string | null
-          it_approved_by?: string | null
-          it_auth_note?: string | null
-          justification?: string | null
+          it_remark?: string | null
           request_type: Database["public"]["Enums"]["iam_request_type"]
+          reviewed_at?: string | null
+          reviewed_by?: string | null
           staff_record_id?: string | null
           status?: Database["public"]["Enums"]["iam_request_status"]
           target_role?: Database["public"]["Enums"]["staff_role"] | null
@@ -1059,14 +1065,12 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           current_role?: Database["public"]["Enums"]["staff_role"] | null
-          hr_approved_at?: string | null
-          hr_approved_by?: string | null
+          hr_remark?: string | null
           id?: string
-          it_approved_at?: string | null
-          it_approved_by?: string | null
-          it_auth_note?: string | null
-          justification?: string | null
+          it_remark?: string | null
           request_type?: Database["public"]["Enums"]["iam_request_type"]
+          reviewed_at?: string | null
+          reviewed_by?: string | null
           staff_record_id?: string | null
           status?: Database["public"]["Enums"]["iam_request_status"]
           target_role?: Database["public"]["Enums"]["staff_role"] | null
@@ -1421,41 +1425,44 @@ export type Database = {
       locations: {
         Row: {
           allowed_categories:
-          | Database["public"]["Enums"]["product_category_enum"][]
-          | null
+            | Database["public"]["Enums"]["product_category_enum"][]
+            | null
           can_hold_inventory: boolean | null
           created_at: string
           created_by: string | null
           id: string
           is_active: boolean
+          is_fnb_default: boolean | null
+          is_retail_default: boolean | null
           name: string
-          type: string | null
           updated_at: string | null
         }
         Insert: {
           allowed_categories?:
-          | Database["public"]["Enums"]["product_category_enum"][]
-          | null
+            | Database["public"]["Enums"]["product_category_enum"][]
+            | null
           can_hold_inventory?: boolean | null
           created_at?: string
           created_by?: string | null
           id?: string
           is_active?: boolean
+          is_fnb_default?: boolean | null
+          is_retail_default?: boolean | null
           name: string
-          type?: string | null
           updated_at?: string | null
         }
         Update: {
           allowed_categories?:
-          | Database["public"]["Enums"]["product_category_enum"][]
-          | null
+            | Database["public"]["Enums"]["product_category_enum"][]
+            | null
           can_hold_inventory?: boolean | null
           created_at?: string
           created_by?: string | null
           id?: string
           is_active?: boolean
+          is_fnb_default?: boolean | null
+          is_retail_default?: boolean | null
           name?: string
-          type?: string | null
           updated_at?: string | null
         }
         Relationships: []
@@ -1724,14 +1731,14 @@ export type Database = {
           is_active: boolean
           name: string
           product_category:
-          | Database["public"]["Enums"]["product_category_enum"]
-          | null
+            | Database["public"]["Enums"]["product_category_enum"]
+            | null
           reorder_point: number
           sku: string | null
           supplier_id: string | null
           unit_of_measure:
-          | Database["public"]["Enums"]["unit_of_measure_enum"]
-          | null
+            | Database["public"]["Enums"]["unit_of_measure_enum"]
+            | null
           updated_at: string | null
         }
         Insert: {
@@ -1743,14 +1750,14 @@ export type Database = {
           is_active?: boolean
           name: string
           product_category?:
-          | Database["public"]["Enums"]["product_category_enum"]
-          | null
+            | Database["public"]["Enums"]["product_category_enum"]
+            | null
           reorder_point?: number
           sku?: string | null
           supplier_id?: string | null
           unit_of_measure?:
-          | Database["public"]["Enums"]["unit_of_measure_enum"]
-          | null
+            | Database["public"]["Enums"]["unit_of_measure_enum"]
+            | null
           updated_at?: string | null
         }
         Update: {
@@ -1762,14 +1769,14 @@ export type Database = {
           is_active?: boolean
           name?: string
           product_category?:
-          | Database["public"]["Enums"]["product_category_enum"]
-          | null
+            | Database["public"]["Enums"]["product_category_enum"]
+            | null
           reorder_point?: number
           sku?: string | null
           supplier_id?: string | null
           unit_of_measure?:
-          | Database["public"]["Enums"]["unit_of_measure_enum"]
-          | null
+            | Database["public"]["Enums"]["unit_of_measure_enum"]
+            | null
           updated_at?: string | null
         }
         Relationships: [
@@ -1784,51 +1791,53 @@ export type Database = {
       }
       profiles: {
         Row: {
-          app_role: Database["public"]["Enums"]["app_role"]
           avatar_url: string | null
           created_at: string
           display_name: string | null
+          email: string | null
+          employee_id: string | null
+          employment_status: Database["public"]["Enums"]["employment_status"]
           id: string
-          is_locked: boolean
-          is_mfa_enabled: boolean
-          last_sign_in_at: string | null
-          locked_at: string | null
-          locked_by: string | null
-          locked_reason: string | null
+          password_set: boolean
+          staff_record_id: string | null
           staff_role: Database["public"]["Enums"]["staff_role"] | null
           updated_at: string | null
         }
         Insert: {
-          app_role?: Database["public"]["Enums"]["app_role"]
           avatar_url?: string | null
           created_at?: string
           display_name?: string | null
+          email?: string | null
+          employee_id?: string | null
+          employment_status?: Database["public"]["Enums"]["employment_status"]
           id: string
-          is_locked?: boolean
-          is_mfa_enabled?: boolean
-          last_sign_in_at?: string | null
-          locked_at?: string | null
-          locked_by?: string | null
-          locked_reason?: string | null
+          password_set?: boolean
+          staff_record_id?: string | null
           staff_role?: Database["public"]["Enums"]["staff_role"] | null
           updated_at?: string | null
         }
         Update: {
-          app_role?: Database["public"]["Enums"]["app_role"]
           avatar_url?: string | null
           created_at?: string
           display_name?: string | null
+          email?: string | null
+          employee_id?: string | null
+          employment_status?: Database["public"]["Enums"]["employment_status"]
           id?: string
-          is_locked?: boolean
-          is_mfa_enabled?: boolean
-          last_sign_in_at?: string | null
-          locked_at?: string | null
-          locked_by?: string | null
-          locked_reason?: string | null
+          password_set?: boolean
+          staff_record_id?: string | null
           staff_role?: Database["public"]["Enums"]["staff_role"] | null
           updated_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profiles_staff_record_id_fkey"
+            columns: ["staff_record_id"]
+            isOneToOne: true
+            referencedRelation: "staff_records"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       promo_codes: {
         Row: {
@@ -2080,9 +2089,11 @@ export type Database = {
       restock_tasks: {
         Row: {
           assigned_to: string | null
+          batch_id: string | null
           completed_at: string | null
           created_at: string
           created_by: string | null
+          delivery_photo_url: string | null
           id: string
           location_id: string
           needed_qty: number
@@ -2090,12 +2101,15 @@ export type Database = {
           product_id: string
           status: Database["public"]["Enums"]["restock_status"]
           updated_at: string | null
+          zone_scan_proof: string | null
         }
         Insert: {
           assigned_to?: string | null
+          batch_id?: string | null
           completed_at?: string | null
           created_at?: string
           created_by?: string | null
+          delivery_photo_url?: string | null
           id?: string
           location_id: string
           needed_qty: number
@@ -2103,12 +2117,15 @@ export type Database = {
           product_id: string
           status?: Database["public"]["Enums"]["restock_status"]
           updated_at?: string | null
+          zone_scan_proof?: string | null
         }
         Update: {
           assigned_to?: string | null
+          batch_id?: string | null
           completed_at?: string | null
           created_at?: string
           created_by?: string | null
+          delivery_photo_url?: string | null
           id?: string
           location_id?: string
           needed_qty?: number
@@ -2116,6 +2133,7 @@ export type Database = {
           product_id?: string
           status?: Database["public"]["Enums"]["restock_status"]
           updated_at?: string | null
+          zone_scan_proof?: string | null
         }
         Relationships: [
           {
@@ -2283,8 +2301,10 @@ export type Database = {
         Row: {
           actual_hours: number | null
           clock_in: string | null
+          clock_in_location: string | null
           clock_in_photo: string | null
           clock_out: string | null
+          clock_out_location: string | null
           clock_out_photo: string | null
           created_at: string | null
           expected_end_time: string | null
@@ -2299,8 +2319,10 @@ export type Database = {
         Insert: {
           actual_hours?: number | null
           clock_in?: string | null
+          clock_in_location?: string | null
           clock_in_photo?: string | null
           clock_out?: string | null
+          clock_out_location?: string | null
           clock_out_photo?: string | null
           created_at?: string | null
           expected_end_time?: string | null
@@ -2315,8 +2337,10 @@ export type Database = {
         Update: {
           actual_hours?: number | null
           clock_in?: string | null
+          clock_in_location?: string | null
           clock_in_photo?: string | null
           clock_out?: string | null
+          clock_out_location?: string | null
           clock_out_photo?: string | null
           created_at?: string | null
           expected_end_time?: string | null
@@ -2362,25 +2386,16 @@ export type Database = {
           created_at: string
           created_by: string | null
           department_id: string | null
-          email: string
-          employee_id: string
-          employment_status: Database["public"]["Enums"]["employment_status"]
           id: string
           kin_name: string | null
           kin_phone: string | null
           kin_relationship: string | null
           legal_name: string
           national_id_enc: string | null
+          personal_email: string
           phone: string | null
-          role: Database["public"]["Enums"]["staff_role"]
           salary_enc: string | null
-          terminated_at: string | null
-          terminated_by: string | null
-          termination_reason:
-          | Database["public"]["Enums"]["termination_reason"]
-          | null
           updated_at: string | null
-          user_id: string | null
         }
         Insert: {
           address?: string | null
@@ -2391,25 +2406,16 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           department_id?: string | null
-          email: string
-          employee_id: string
-          employment_status?: Database["public"]["Enums"]["employment_status"]
           id?: string
           kin_name?: string | null
           kin_phone?: string | null
           kin_relationship?: string | null
           legal_name: string
           national_id_enc?: string | null
+          personal_email: string
           phone?: string | null
-          role: Database["public"]["Enums"]["staff_role"]
           salary_enc?: string | null
-          terminated_at?: string | null
-          terminated_by?: string | null
-          termination_reason?:
-          | Database["public"]["Enums"]["termination_reason"]
-          | null
           updated_at?: string | null
-          user_id?: string | null
         }
         Update: {
           address?: string | null
@@ -2420,25 +2426,16 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           department_id?: string | null
-          email?: string
-          employee_id?: string
-          employment_status?: Database["public"]["Enums"]["employment_status"]
           id?: string
           kin_name?: string | null
           kin_phone?: string | null
           kin_relationship?: string | null
           legal_name?: string
           national_id_enc?: string | null
+          personal_email?: string
           phone?: string | null
-          role?: Database["public"]["Enums"]["staff_role"]
           salary_enc?: string | null
-          terminated_at?: string | null
-          terminated_by?: string | null
-          termination_reason?:
-          | Database["public"]["Enums"]["termination_reason"]
-          | null
           updated_at?: string | null
-          user_id?: string | null
         }
         Relationships: [
           {
@@ -2692,6 +2689,81 @@ export type Database = {
           },
         ]
       }
+      vehicles: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          name: string
+          plate: string | null
+          status: string
+          updated_at: string | null
+          vehicle_type: string | null
+          zone_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name: string
+          plate?: string | null
+          status?: string
+          updated_at?: string | null
+          vehicle_type?: string | null
+          zone_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name?: string
+          plate?: string | null
+          status?: string
+          updated_at?: string | null
+          vehicle_type?: string | null
+          zone_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vehicles_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vehicles_zone_id_fkey"
+            columns: ["zone_id"]
+            isOneToOne: false
+            referencedRelation: "zones"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vlans: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: number
+          name: string
+          vlan_id: number
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: number
+          name: string
+          vlan_id: number
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: number
+          name?: string
+          vlan_id?: number
+        }
+        Relationships: []
+      }
       weekly_patterns: {
         Row: {
           day_of_week: number
@@ -2821,7 +2893,6 @@ export type Database = {
       }
       admin_set_user_role: {
         Args: {
-          p_app_role: Database["public"]["Enums"]["app_role"]
           p_staff_role?: Database["public"]["Enums"]["staff_role"]
           p_user_id: string
         }
@@ -2835,11 +2906,17 @@ export type Database = {
         }
         Returns: undefined
       }
+      can_read_audit: { Args: { p_entity_type: string }; Returns: boolean }
+      execute_nightly_attendance_sweep: { Args: never; Returns: undefined }
       is_admin: { Args: never; Returns: boolean }
       is_crew: { Args: never; Returns: boolean }
       is_management: { Args: never; Returns: boolean }
       is_staff: { Args: never; Returns: boolean }
       jwt_role: { Args: never; Returns: string }
+      resolve_incident: {
+        Args: { p_attachment_url?: string; p_incident_id: string }
+        Returns: undefined
+      }
       rpc_complete_pos_order: {
         Args: { p_booking_id?: string; p_items: Json; p_zone_label?: string }
         Returns: Json
@@ -2901,151 +2978,150 @@ export type Database = {
       alert_severity: "low" | "medium" | "high" | "critical"
       alert_status: "open" | "resolved"
       alert_type:
-      | "auth_security"
-      | "broadcast"
-      | "system"
-      | "technical_maintenance"
-      app_role: "guest" | "crew" | "management" | "admin"
+        | "auth_security"
+        | "broadcast"
+        | "system"
+        | "technical_maintenance"
       audit_request_status: "pending" | "completed" | "recount_required"
       booking_status:
-      | "pending"
-      | "confirmed"
-      | "checked_in"
-      | "completed"
-      | "cancelled"
-      | "refunded"
+        | "pending"
+        | "confirmed"
+        | "checked_in"
+        | "completed"
+        | "cancelled"
+        | "refunded"
       campaign_status: "draft" | "active" | "completed" | "archived"
       check_in_status: "on_time" | "late"
       device_status: "online" | "offline" | "maintenance" | "decommissioned"
       employment_status:
-      | "active"
-      | "pending"
-      | "on_leave"
-      | "suspended"
-      | "terminated"
+        | "active"
+        | "pending"
+        | "on_leave"
+        | "suspended"
+        | "terminated"
       exception_status: "unresolved" | "justified" | "unjustified"
       exception_type:
-      | "late_arrival"
-      | "early_departure"
-      | "missing_checkin"
-      | "missing_checkout"
-      | "absent"
+        | "late_arrival"
+        | "early_departure"
+        | "missing_checkin"
+        | "missing_checkout"
+        | "absent"
       fnb_menu_category_enum:
-      | "hot_food"
-      | "snacks_and_sides"
-      | "hot_beverage"
-      | "cold_beverage"
-      | "bakery_and_dessert"
-      | "combos"
-      | "uncategorized"
+        | "hot_food"
+        | "snacks_and_sides"
+        | "hot_beverage"
+        | "cold_beverage"
+        | "bakery_and_dessert"
+        | "combos"
+        | "uncategorized"
       fnb_order_status: "preparing" | "completed" | "cancelled"
       fulfillment_type_enum: "direct_link" | "recipe_bom"
-      iam_request_status:
-      | "pending_hr"
-      | "pending_it"
-      | "approved"
-      | "rejected"
-      | "executed"
+      iam_request_status: "pending_it" | "approved" | "rejected"
       iam_request_type: "provisioning" | "transfer" | "termination"
       incident_category:
-      | "biohazard"
-      | "altercation"
-      | "medical"
-      | "equipment"
-      | "safety"
-      | "spill"
-      | "guest_complaint"
-      | "fire"
-      | "structural"
-      | "power_outage"
-      | "lost_property"
-      | "found_property"
-      | "lost_child"
-      | "ticketing_issue"
-      | "crowd_congestion"
-      | "other"
-      | "theft"
-      | "damaged_merchandise"
-      | "pos_failure"
-      | "contaminated_food"
-      | "food_waste"
-      | "damaged_in_transit"
-      | "missing_items"
-      | "vehicle_issue"
-      | "vip_issue"
-      | "schedule_delay"
-      | "prop_damage"
-      | "guest_injury"
-      | "lost_and_found"
-      | "lost_report"
-      | "found_report"
+        | "biohazard"
+        | "altercation"
+        | "medical"
+        | "equipment"
+        | "safety"
+        | "spill"
+        | "guest_complaint"
+        | "fire"
+        | "structural"
+        | "power_outage"
+        | "lost_property"
+        | "found_property"
+        | "lost_child"
+        | "ticketing_issue"
+        | "crowd_congestion"
+        | "other"
+        | "theft"
+        | "damaged_merchandise"
+        | "pos_failure"
+        | "contaminated_food"
+        | "food_waste"
+        | "damaged_in_transit"
+        | "missing_items"
+        | "vehicle_issue"
+        | "vip_issue"
+        | "schedule_delay"
+        | "prop_damage"
+        | "guest_injury"
+        | "lost_and_found"
+        | "lost_report"
+        | "found_report"
+        | "unauthorized_access"
+        | "suspicious_package"
+        | "medical_emergency"
+        | "heat_exhaustion"
+        | "safety_hazard"
+        | "restroom_restock"
+        | "vandalism"
+        | "hardware_failure"
+        | "network_outage"
       incident_status: "open" | "resolved"
       leave_status: "pending" | "approved" | "rejected"
       leave_type: "annual" | "medical" | "emergency" | "unpaid"
       maintenance_priority: "low" | "medium" | "high" | "critical"
       maintenance_wo_status:
-      | "open"
-      | "assigned"
-      | "in_progress"
-      | "completed"
-      | "cancelled"
-      | "pending_mac"
-      | "active_mab"
-      | "revoked"
+        | "open"
+        | "assigned"
+        | "in_progress"
+        | "completed"
+        | "cancelled"
+        | "pending_mac"
+        | "active_mab"
+        | "revoked"
       menu_item_category: "prepared_item" | "prepackaged" | "retail" | "drink"
       menu_item_status: "available" | "out_of_stock"
+      payment_method_enum: "cash" | "card" | "face_id"
       po_status:
-      | "pending"
-      | "sent"
-      | "partially_received"
-      | "completed"
-      | "cancelled"
+        | "pending"
+        | "sent"
+        | "partially_received"
+        | "completed"
+        | "cancelled"
       prep_batch_status: "in_progress" | "cooling" | "completed"
       product_category_enum:
-      | "raw_ingredient"
-      | "prepackaged_fnb"
-      | "retail_merch"
-      | "consumable"
+        | "raw_ingredient"
+        | "prepackaged_fnb"
+        | "retail_merch"
+        | "consumable"
       promo_status: "draft" | "active" | "paused" | "expired"
       restock_priority: "normal" | "high" | "critical"
       restock_status: "pending" | "in_progress" | "completed"
       staff_role:
-      | "it_admin"
-      | "business_admin"
-      | "fnb_manager"
-      | "merch_manager"
-      | "maintenance_manager"
-      | "inventory_manager"
-      | "marketing_manager"
-      | "human_resources_manager"
-      | "compliance_manager"
-      | "operations_manager"
-      | "fnb_crew"
-      | "service_crew"
-      | "giftshop_crew"
-      | "runner_crew"
-      | "security_crew"
-      | "health_crew"
-      | "cleaning_crew"
-      | "experience_crew"
-      | "internal_maintainence_crew"
-      termination_reason:
-      | "resignation"
-      | "contract_expired"
-      | "misconduct"
-      | "other"
+        | "it_admin"
+        | "business_admin"
+        | "fnb_manager"
+        | "merch_manager"
+        | "maintenance_manager"
+        | "inventory_manager"
+        | "marketing_manager"
+        | "human_resources_manager"
+        | "compliance_manager"
+        | "operations_manager"
+        | "fnb_crew"
+        | "service_crew"
+        | "giftshop_crew"
+        | "runner_crew"
+        | "security_crew"
+        | "health_crew"
+        | "cleaning_crew"
+        | "experience_crew"
+        | "internal_maintainence_crew"
       transfer_status:
-      | "draft"
-      | "pending_runner"
-      | "in_transit"
-      | "completed"
-      | "cancelled"
+        | "draft"
+        | "pending_runner"
+        | "in_transit"
+        | "completed"
+        | "cancelled"
       unit_of_measure_enum: "piece" | "kg" | "liter" | "box" | "pack"
       waste_reason:
-      | "expired_eod"
-      | "dropped_spilled"
-      | "contaminated"
-      | "prep_error"
+        | "expired_eod"
+        | "dropped_spilled"
+        | "contaminated"
+        | "prep_error"
       wo_status: "draft" | "scheduled" | "active" | "completed" | "revoked"
       wo_topology: "remote" | "onsite"
     }
@@ -3061,116 +3137,116 @@ type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
 
 export type Tables<
   DefaultSchemaTableNameOrOptions extends
-  | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
-  | { schema: keyof DatabaseWithoutInternals },
+    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+    | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-  ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
-    DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-  : never = never,
+    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
+    : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
   ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
-    DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
       Row: infer R
     }
-  ? R
-  : never
+    ? R
+    : never
   : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
-    DefaultSchema["Views"])
-  ? (DefaultSchema["Tables"] &
-    DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
-      Row: infer R
-    }
-  ? R
-  : never
-  : never
+        DefaultSchema["Views"])
+    ? (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+        Row: infer R
+      }
+      ? R
+      : never
+    : never
 
 export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
-  | keyof DefaultSchema["Tables"]
-  | { schema: keyof DatabaseWithoutInternals },
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-  ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-  : never = never,
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
   ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
-    Insert: infer I
-  }
-  ? I
-  : never
+      Insert: infer I
+    }
+    ? I
+    : never
   : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
-  ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
-    Insert: infer I
-  }
-  ? I
-  : never
-  : never
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Insert: infer I
+      }
+      ? I
+      : never
+    : never
 
 export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
-  | keyof DefaultSchema["Tables"]
-  | { schema: keyof DatabaseWithoutInternals },
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-  ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-  : never = never,
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
   ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
-    Update: infer U
-  }
-  ? U
-  : never
+      Update: infer U
+    }
+    ? U
+    : never
   : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
-  ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
-    Update: infer U
-  }
-  ? U
-  : never
-  : never
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Update: infer U
+      }
+      ? U
+      : never
+    : never
 
 export type Enums<
   DefaultSchemaEnumNameOrOptions extends
-  | keyof DefaultSchema["Enums"]
-  | { schema: keyof DatabaseWithoutInternals },
+    | keyof DefaultSchema["Enums"]
+    | { schema: keyof DatabaseWithoutInternals },
   EnumName extends DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-  ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-  : never = never,
+    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
+    : never = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
   ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
   : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
-  ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
-  : never
+    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
+    : never
 
 export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
-  | keyof DefaultSchema["CompositeTypes"]
-  | { schema: keyof DatabaseWithoutInternals },
+    | keyof DefaultSchema["CompositeTypes"]
+    | { schema: keyof DatabaseWithoutInternals },
   CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-  ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-  : never = never,
+    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    : never = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
   ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
   : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
-  ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
-  : never
+    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+    : never
 
 export const Constants = {
   public: {
@@ -3183,7 +3259,6 @@ export const Constants = {
         "system",
         "technical_maintenance",
       ],
-      app_role: ["guest", "crew", "management", "admin"],
       audit_request_status: ["pending", "completed", "recount_required"],
       booking_status: [
         "pending",
@@ -3222,13 +3297,7 @@ export const Constants = {
       ],
       fnb_order_status: ["preparing", "completed", "cancelled"],
       fulfillment_type_enum: ["direct_link", "recipe_bom"],
-      iam_request_status: [
-        "pending_hr",
-        "pending_it",
-        "approved",
-        "rejected",
-        "executed",
-      ],
+      iam_request_status: ["pending_it", "approved", "rejected"],
       iam_request_type: ["provisioning", "transfer", "termination"],
       incident_category: [
         "biohazard",
@@ -3262,6 +3331,15 @@ export const Constants = {
         "lost_and_found",
         "lost_report",
         "found_report",
+        "unauthorized_access",
+        "suspicious_package",
+        "medical_emergency",
+        "heat_exhaustion",
+        "safety_hazard",
+        "restroom_restock",
+        "vandalism",
+        "hardware_failure",
+        "network_outage",
       ],
       incident_status: ["open", "resolved"],
       leave_status: ["pending", "approved", "rejected"],
@@ -3279,6 +3357,7 @@ export const Constants = {
       ],
       menu_item_category: ["prepared_item", "prepackaged", "retail", "drink"],
       menu_item_status: ["available", "out_of_stock"],
+      payment_method_enum: ["cash", "card", "face_id"],
       po_status: [
         "pending",
         "sent",
@@ -3316,12 +3395,6 @@ export const Constants = {
         "cleaning_crew",
         "experience_crew",
         "internal_maintainence_crew",
-      ],
-      termination_reason: [
-        "resignation",
-        "contract_expired",
-        "misconduct",
-        "other",
       ],
       transfer_status: [
         "draft",

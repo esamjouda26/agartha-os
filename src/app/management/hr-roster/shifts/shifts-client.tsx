@@ -275,7 +275,7 @@ export default function ShiftsClient({ staff, dict, patterns, dailyShifts, curre
                                     <div className="w-1 h-3 rounded bg-zinc-700/50" />
                                     {emp.legal_name || emp.employee_id}
                                   </div>
-                                  <div className="text-[10px] text-gray-500 font-mono ml-3">{emp.id.substring(0, 8)}…</div>
+                                  <div className="text-[10px] text-gray-500 font-mono ml-3">{emp.employee_id ?? emp.id.substring(0, 8) + "…"}</div>
                                 </td>
                                 {[1,2,3,4,5,6,7].map((dayNum) => {
                                   const p = patterns.find((x: any) => x.staff_record_id === emp.id && x.day_of_week === dayNum);

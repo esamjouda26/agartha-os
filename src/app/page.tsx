@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { ROLE_PORTAL_ACCESS } from "@/types";
 
 export default async function HomePage() {
   const supabase = await createClient();

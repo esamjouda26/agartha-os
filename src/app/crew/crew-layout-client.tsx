@@ -9,7 +9,7 @@ import {
   Bell, Settings, LogOut, Menu, X, User,
   Clock, Search, ChefHat, PackagePlus,
   TicketCheck, Store, Undo2, Truck,
-  PackageCheck, ClipboardList
+  PackageCheck, ClipboardList, Cctv, Wrench
 } from "lucide-react";
 
 // Sourced from Crew Description Spec
@@ -46,10 +46,22 @@ const CREW_ROUTES: Record<string, { href: string; label: string; icon: React.Com
     ...SHARED_TABS,
   ],
   experience_crew: [...SHARED_TABS],
-  security_crew: [...SHARED_TABS],
-  health_crew: [...SHARED_TABS],
-  cleaning_crew: [...SHARED_TABS],
-  internal_maintainence_crew: [...SHARED_TABS],
+  security_crew: [
+    { href: "/crew/security/surveillance", label: "Zone Surveillance", icon: Cctv },
+    ...SHARED_TABS,
+  ],
+  health_crew: [
+    { href: "/crew/logistics/restock-queue", label: "Restock Request", icon: PackagePlus },
+    ...SHARED_TABS,
+  ],
+  cleaning_crew: [
+    { href: "/crew/logistics/restock-queue", label: "Restock Request", icon: PackagePlus },
+    ...SHARED_TABS,
+  ],
+  internal_maintainence_crew: [
+    { href: "/crew/maintenance/wo", label: "Ext. Maintenance WO", icon: Wrench },
+    ...SHARED_TABS,
+  ],
 };
 
 const DEFAULT_CREW_ROUTES = [...SHARED_TABS];

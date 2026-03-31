@@ -323,14 +323,51 @@ export async function fetchReportDataAction(metric: string, timeframe: string): 
 
 export interface IamRequest {
   id: string;
-  request_type: string;
+  request_type: "provisioning" | "transfer" | "termination";
   status: string;
   target_role: string | null;
   current_role: string | null;
-  justification: string | null;
+  hr_remark: string | null;
   created_at: string;
   legal_name: string | null;
-  employee_id: string | null;
+  personal_email: string | null;
+}
+
+// ── Email helper ──────────────────────────────────────────────────────────────
+async function sendOnboardingEmail({
+  to, workEmail, magicLink, displayName,
+}: { to: string; workEmail: string; magicLink: string; displayName: string }) {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) {
+    console.warn("[AgarthaOS] RESEND_API_KEY not configured — skipping onboarding email.");
+    return;
+  }
+  await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      from: "AgarthaOS <noreply@agarthaworld.com>",
+      to: [to],
+      subject: "Your AgarthaOS workspace is ready",
+      html: `
+        <div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:24px;background:#0a0e1a;color:#e2e8f0;border-radius:8px;">
+          <h2 style="color:#d4af37;margin-bottom:8px;">Welcome to AgarthaOS, ${displayName}.</h2>
+          <p style="color:#94a3b8;">Your workspace account has been provisioned by the IT department.</p>
+          <p style="margin:16px 0;padding:12px;background:rgba(212,175,55,0.08);border:1px solid rgba(212,175,55,0.2);border-radius:4px;">
+            Your designated work email is:<br>
+            <strong style="color:#d4af37;font-size:1.1em;">${workEmail}</strong>
+          </p>
+          <p>Click below to securely set your password and access your workspace:</p>
+          <a href="${magicLink}" style="display:inline-block;margin:16px 0;padding:12px 24px;background:#d4af37;color:#0a0e1a;text-decoration:none;border-radius:4px;font-weight:bold;">
+            Set Password &amp; Access Workspace
+          </a>
+          <p style="color:#64748b;font-size:12px;margin-top:24px;">
+            This link is one-time use only. If you did not expect this email, contact your IT department immediately.
+          </p>
+        </div>
+      `,
+    }),
+  });
 }
 
 export async function fetchIamRequestsAction(): Promise<IamRequest[]> {
@@ -340,10 +377,10 @@ export async function fetchIamRequestsAction(): Promise<IamRequest[]> {
   const { data, error } = await (supabase.from as any)("iam_requests")
     .select(`
       id, request_type, status, target_role, current_role,
-      justification, created_at,
-      staff_records ( legal_name, employee_id )
+      hr_remark, created_at,
+      staff_records ( legal_name, personal_email )
     `)
-    .in("status", ["pending_hr", "pending_it"])
+    .eq("status", "pending_it")
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -358,62 +395,224 @@ export async function fetchIamRequestsAction(): Promise<IamRequest[]> {
     status: r.status,
     target_role: r.target_role ?? null,
     current_role: r.current_role ?? null,
-    justification: r.justification ?? null,
+    hr_remark: r.hr_remark ?? null,
     created_at: r.created_at,
     legal_name: r.staff_records?.legal_name ?? null,
-    employee_id: r.staff_records?.employee_id ?? null,
+    personal_email: r.staff_records?.personal_email ?? null,
   }));
 }
 
-export async function approveIamRequestAction(requestId: string, note?: string) {
+export async function approveIamRequestAction(requestId: string) {
   const caller = await requireRole("admin");
   if (!caller) return { success: false, error: "FORBIDDEN" };
 
   const supabase = await createClient();
+  const { createAdminClient } = await import("@/lib/supabase/admin");
+  const supabaseAdmin = createAdminClient();
 
+  // Fetch IAM request + linked staff record
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: req } = await (supabase.from as any)("iam_requests")
-    .select("status")
+  const { data: req, error: fetchError } = await (supabase.from as any)("iam_requests")
+    .select(`
+      id, status, request_type, target_role, current_role, staff_record_id,
+      staff_records ( id, legal_name, personal_email, contract_start )
+    `)
     .eq("id", requestId)
     .single();
 
-  const currentStatus = (req as { status: string } | null)?.status;
-  // pending_hr → pending_it (HR step done); pending_it → approved (IT step done)
-  const newStatus = currentStatus === "pending_hr" ? "pending_it" : "approved";
-
-  const payload: Record<string, unknown> = {
-    status: newStatus,
-    updated_at: new Date().toISOString(),
-  };
-  if (newStatus === "approved") {
-    payload.it_approved_by = caller.id;
-    payload.it_approved_at = new Date().toISOString();
-    if (note) payload.it_auth_note = note;
-  }
+  if (fetchError || !req) return { success: false, error: "Request not found." };
+  if (req.status !== "pending_it") return { success: false, error: "Request is not in pending_it state." };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error } = await (supabase.from as any)("iam_requests")
-    .update(payload)
-    .eq("id", requestId);
+  const sr = (req as any).staff_records as {
+    id: string; legal_name: string; personal_email: string; contract_start: string;
+  } | null;
 
-  if (error) return { success: false, error: error.message };
-  revalidatePath("/admin/access-control");
-  return { success: true, newStatus };
+  // ── PROVISIONING ─────────────────────────────────────────────────────────
+  if (req.request_type === "provisioning") {
+    if (!sr?.legal_name || !sr?.personal_email) {
+      return { success: false, error: "Staff record is missing legal_name or personal_email." };
+    }
+
+    // Step 1: Generate work email from legal_name
+    const tokens = sr.legal_name.trim()
+      .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase().split(/\s+/).filter(Boolean);
+    const first = tokens[0];
+    const last = tokens[tokens.length - 1];
+    const baseEmail = `${first}.${last}@agarthaworld.com`;
+
+    // Collision check against existing auth users
+    const { data: usersPage } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1000 });
+    const existingEmails = new Set((usersPage?.users ?? []).map(u => u.email?.toLowerCase()));
+    let workEmail = baseEmail;
+    let suffix = 2;
+    while (existingEmails.has(workEmail)) {
+      workEmail = `${first}.${last}${suffix}@agarthaworld.com`;
+      suffix++;
+    }
+
+    // Step 2: Create auth.users account (NOT invite — we control the link)
+    const randomPass = Array.from(crypto.getRandomValues(new Uint8Array(32)))
+      .map(b => b.toString(16).padStart(2, "0")).join("");
+
+    const contractStart = new Date(sr.contract_start);
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const employmentStatus = contractStart <= today ? "active" : "pending";
+
+    const displayName = [first, last]
+      .map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+
+    const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
+      email: workEmail,
+      email_confirm: true,
+      password: randomPass,
+      app_metadata: {
+        staff_role: req.target_role,
+        employment_status: employmentStatus,
+        password_set: false,
+      },
+    });
+
+    if (createError) return { success: false, error: `Auth creation failed: ${createError.message}` };
+    const authUserId = newUser.user.id;
+
+    // Step 3: Generate one-time recovery link
+    const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
+      type: "recovery",
+      email: workEmail,
+    });
+    if (linkError) console.error("[AgarthaOS] generateLink error:", linkError.message);
+    const magicLink = linkData?.properties?.action_link ?? null;
+
+    // Step 4: Dispatch onboarding email to personal email
+    if (magicLink) {
+      await sendOnboardingEmail({ to: sr.personal_email, workEmail, magicLink, displayName });
+    }
+
+    // Step 5: Update profiles row (created by auth trigger — may need a moment, use upsert)
+    await supabaseAdmin.from("profiles").update({
+      staff_record_id: sr.id,
+      email: workEmail,
+      display_name: displayName,
+      staff_role: req.target_role,
+      employment_status: employmentStatus,
+      updated_at: new Date().toISOString(),
+    }).eq("id", authUserId);
+
+    // Step 6: Mark IAM request as approved
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (supabase.from as any)("iam_requests").update({
+      status: "approved",
+      reviewed_by: caller.id,
+      reviewed_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }).eq("id", requestId);
+
+    revalidatePath("/admin/access-control");
+    return { success: true, workEmail };
+  }
+
+  // ── TRANSFER ─────────────────────────────────────────────────────────────
+  if (req.request_type === "transfer") {
+    if (!sr) return { success: false, error: "Staff record not found." };
+
+    // Find auth account via profiles.staff_record_id
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("staff_record_id", sr.id)
+      .single();
+
+    if (!profile) return { success: false, error: "No auth account linked to this staff record." };
+
+    // Update app_metadata (new role effective on next token refresh)
+    await supabaseAdmin.auth.admin.updateUserById(profile.id, {
+      app_metadata: { staff_role: req.target_role },
+    });
+
+    // Update profiles.staff_role
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (supabase.from as any)("profiles").update({
+      staff_role: req.target_role,
+      updated_at: new Date().toISOString(),
+    }).eq("id", profile.id);
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (supabase.from as any)("iam_requests").update({
+      status: "approved",
+      reviewed_by: caller.id,
+      reviewed_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }).eq("id", requestId);
+
+    revalidatePath("/admin/access-control");
+    return { success: true };
+  }
+
+  // ── TERMINATION ──────────────────────────────────────────────────────────
+  if (req.request_type === "termination") {
+    if (!sr) return { success: false, error: "Staff record not found." };
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("staff_record_id", sr.id)
+      .single();
+
+    if (!profile) return { success: false, error: "No auth account linked to this staff record." };
+
+    // Update profiles
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (supabase.from as any)("profiles").update({
+      employment_status: "terminated",
+      updated_at: new Date().toISOString(),
+    }).eq("id", profile.id);
+
+    // Update app_metadata + ban auth account (100 years = effectively permanent)
+    await supabaseAdmin.auth.admin.updateUserById(profile.id, {
+      app_metadata: { employment_status: "terminated" },
+      ban_duration: "876600h",
+    });
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (supabase.from as any)("iam_requests").update({
+      status: "approved",
+      reviewed_by: caller.id,
+      reviewed_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }).eq("id", requestId);
+
+    revalidatePath("/admin/access-control");
+    return { success: true };
+  }
+
+  return { success: false, error: "Unknown request type." };
 }
 
-export async function rejectIamRequestAction(requestId: string) {
+export async function rejectIamRequestAction(requestId: string, itRemark: string) {
   const caller = await requireRole("admin");
   if (!caller) return { success: false, error: "FORBIDDEN" };
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error } = await (createClient().then((s) =>
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (s.from as any)("iam_requests")
-      .update({ status: "rejected", updated_at: new Date().toISOString() })
-      .eq("id", requestId)
-  ));
+  if (!itRemark?.trim()) {
+    return { success: false, error: "A rejection reason (it_remark) is required." };
+  }
 
-  if (error) return { success: false, error: (error as { message: string }).message };
+  const supabase = await createClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase.from as any)("iam_requests").update({
+    status: "rejected",
+    it_remark: itRemark.trim(),
+    reviewed_by: caller.id,
+    reviewed_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  }).eq("id", requestId);
+
+  if (error) return { success: false, error: error.message };
   revalidatePath("/admin/access-control");
   return { success: true };
 }
+
+
+
+

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition, useMemo } from "react";
-import { CheckCircle2, AlertTriangle, Search, Inbox, Archive, Download, Clock, ChevronLeft, ChevronRight } from "lucide-react";
+import { CheckCircle2, AlertTriangle, Search, Inbox, Archive, Download, Clock, Ban, Loader2 } from "lucide-react";
 import { resolveDiscrepancy } from "../actions";
 import { DataTable, TableHeader, TableBody, TableRow, TableCell, TableHead, TableHeadSortable, TableToolbar, TablePagination, TableEmptyState } from "@/components/ui/data-table";
 import { useDataTable } from "@/hooks/useDataTable";
@@ -18,6 +18,9 @@ export default function QueueClient({ initialDiscrepancies }: any) {
   
   const [actionModal, setActionModal] = useState<{ id: string, shiftId: string, type: 'justify' | 'reject' } | null>(null);
   const [reason, setReason] = useState("");
+
+  const [bulkRejectOpen, setBulkRejectOpen] = useState(false);
+  const [bulkReason, setBulkReason] = useState("");
   
   const [isPending, startTransition] = useTransition();
   const [toast, setToast] = useState<string | null>(null);
@@ -38,6 +41,33 @@ export default function QueueClient({ initialDiscrepancies }: any) {
         setReason("");
         showToast(isApproved ? "Anomaly completely Justified & Math Restored." : "Anomaly Rejected and Archived.");
       } catch(e: any) { showToast(e.message); }
+    });
+  };
+
+  // Bulk-reject all currently visible unresolved discrepancies
+  const handleBulkReject = () => {
+    if (!bulkReason.trim()) return;
+    // All unresolved items, ignoring pagination — use raw unresolved list
+    const targets = discrepancies.filter((d: any) => d.status === "unresolved");
+    if (!targets.length) { setBulkRejectOpen(false); return; }
+    startTransition(async () => {
+      try {
+        await Promise.all(
+          targets.map((d: any) =>
+            resolveDiscrepancy(d.id, d.shift_schedule_id, false, bulkReason)
+          )
+        );
+        setDiscrepancies((prev: any[]) =>
+          prev.map((d: any) =>
+            d.status === "unresolved"
+              ? { ...d, status: "unjustified", justification_reason: bulkReason }
+              : d
+          )
+        );
+        setBulkRejectOpen(false);
+        setBulkReason("");
+        showToast(`⚠ ${targets.length} anomalies penalized and archived.`);
+      } catch (e: any) { showToast(`Bulk action failed: ${e.message}`); }
     });
   };
 
@@ -106,13 +136,24 @@ export default function QueueClient({ initialDiscrepancies }: any) {
             ) : null}
           >
              <RoleFilterDropdown filterRoles={filterRoles} setFilterRoles={setFilterRoles} roleGroups={ROLE_GROUPS} rolesMap={ROLES} />
-             {subTab === 'history' && (
+             {subTab === 'history' ? (
                  <>
                      <TimeFilterDropdown timeFilter={timeFilter} setTimeFilter={(v: string) => { setTimeFilter(v); setPage(1); }} optionsMap={TIME_OPTIONS} />
                      <button onClick={generateHistoryCSV} className="flex items-center gap-2 px-4 py-2 bg-[rgba(212,175,55,0.1)] hover:bg-[rgba(212,175,55,0.15)] text-[#d4af37] text-xs font-bold uppercase tracking-widest border border-[#d4af37]/30 rounded transition-all">
                         <Download className="w-3.5 h-3.5" /> Export Grid
                      </button>
                  </>
+             ) : (
+               // Pending tab — show Bulk Reject All button if there are unresolved items
+               discrepancies.some((d: any) => d.status === "unresolved") && (
+                 <button
+                   onClick={() => { setBulkRejectOpen(true); setBulkReason(""); }}
+                   disabled={isPending}
+                   className="flex items-center gap-2 px-4 py-2 bg-red-500/10 hover:bg-red-500/15 text-red-400 text-xs font-bold uppercase tracking-widest border border-red-500/30 rounded transition-all disabled:opacity-40"
+                 >
+                   <Ban className="w-3.5 h-3.5" /> Reject All Unresolved
+                 </button>
+               )
              )}
           </TableToolbar>
 
@@ -176,6 +217,42 @@ export default function QueueClient({ initialDiscrepancies }: any) {
 
           <TablePagination page={page} setPage={setPage} totalPages={totalPages} totalRecords={filteredData.length} pageSize={pageSize} setPageSize={setPageSize} />
        </div>
+
+       {/* Bulk Reject All Modal */}
+       {bulkRejectOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-md px-4" onClick={() => setBulkRejectOpen(false)}>
+             <div className="glass-panel w-full max-w-md p-6 bg-[#020408] rounded-xl border border-red-500/30 shadow-[0_0_50px_rgba(239,68,68,0.15)]" onClick={e => e.stopPropagation()}>
+                <h3 className="text-lg font-cinzel font-bold text-red-400 uppercase tracking-widest flex items-center gap-2 mb-2">
+                   <Ban className="w-5 h-5" /> Bulk Penalty Enforcement
+                </h3>
+                <p className="text-xs text-gray-400 mb-5 leading-relaxed">
+                   This will mark <strong className="text-red-400">{discrepancies.filter((d: any) => d.status === "unresolved").length} unresolved anomalies</strong> as <span className="font-bold text-red-400">Rejected / Penalized</span> and archive them with the reason below.
+                   <br /><br />
+                   <strong className="text-amber-400">⚠ Irreversible:</strong> Justified hours will NOT be recalculated for bulk rejections.
+                </p>
+                <div>
+                   <label className="block text-[10px] uppercase font-bold text-gray-500 mb-1">Shared Penalty Reason</label>
+                   <textarea
+                     value={bulkReason}
+                     onChange={e => setBulkReason(e.target.value)}
+                     placeholder="e.g. No supporting documentation received by cutoff date..."
+                     className="w-full h-28 bg-[#010204] border border-white/10 rounded-lg p-3 text-sm text-gray-200 focus:outline-none focus:border-red-500/50 resize-none transition-all"
+                   />
+                </div>
+                <div className="flex justify-end gap-3 mt-5">
+                   <button onClick={() => setBulkRejectOpen(false)} disabled={isPending} className="px-4 py-2 text-xs font-bold uppercase tracking-widest text-gray-400 hover:text-white disabled:opacity-50">Cancel</button>
+                   <button
+                     onClick={handleBulkReject}
+                     disabled={!bulkReason.trim() || isPending}
+                     className="px-6 py-2 text-xs font-bold uppercase tracking-widest bg-red-600/20 border border-red-500/40 text-red-400 hover:bg-red-600/30 rounded disabled:opacity-30 disabled:cursor-not-allowed transition-all flex items-center gap-2"
+                   >
+                     {isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Ban className="w-3.5 h-3.5" />}
+                     Enforce Bulk Penalty
+                   </button>
+                </div>
+             </div>
+          </div>
+       )}
 
        {/* Resolution Modal */}
        {actionModal && (

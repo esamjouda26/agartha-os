@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { ChefHat, CheckSquare, Clock } from "lucide-react";
-import { completeFnbOrder } from "../actions";
+import { markOrderComplete } from "../actions";
 
 interface Order {
   id: string;
@@ -19,10 +19,9 @@ export default function ActiveOrdersClient({ orders }: { orders: Order[] }) {
   async function handleCompleteOrder(orderId: string) {
     setProcessingId(orderId);
     try {
-      await completeFnbOrder(orderId);
+      await markOrderComplete(orderId);
     } catch (err: any) {
-      alert("AUDIT FAILURE: " + err.message);
-      console.error(err);
+      console.error("Order complete failed:", err);
     } finally {
       setProcessingId(null);
     }

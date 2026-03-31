@@ -235,7 +235,7 @@ export async function fetchExperiencesListAction() {
   return data ?? [];
 }
 
-// ── System Audits & Permissions Hierarchy (Phase 2 Migration) ───────────────────────────────────────────────────
+// ── System Audits ────────────────────────────────────────────────────────────
 
 export async function fetchDomainAuditLogs(entityTypes: string[], page = 1, pageSize = 25): Promise<PaginatedResult<Record<string, unknown>>> {
   const supabase = await createClient();
@@ -247,8 +247,6 @@ export async function fetchDomainAuditLogs(entityTypes: string[], page = 1, page
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
 
-  // With the Phase 2 migration, RLS handles RBAC filtering mathematically inside the Postgres Engine based on the Dictionary.
-  // We can safely execute this directly with the standard client.
   const { data, count } = await supabase
     .from("system_audit_log")
     .select("*", { count: "exact" })
@@ -257,44 +255,4 @@ export async function fetchDomainAuditLogs(entityTypes: string[], page = 1, page
     .range(from, to);
 
   return { data: (data ?? []) as Record<string, unknown>[], total: count ?? 0, page, pageSize };
-}
-
-export async function fetchRolePermissionsMatrixAction() {
-  const caller = await requireRole("management");
-  if (!caller) throw new Error("Unauthorized");
-  
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  const role = user?.app_metadata?.staff_role;
-  if (role !== "it_admin" && role !== "business_admin") throw new Error("Requires IT Admin clearance.");
-
-  const { data, error } = await supabase
-    .from("role_permissions")
-    .select("*")
-    .order("role_id")
-    .order("entity_type");
-    
-  if (error) throw new Error(error.message);
-  return data;
-}
-
-export async function mutateRolePermissionAction(roleId: string, entityType: string, canSelect: boolean) {
-  const caller = await requireRole("management");
-  if (!caller) throw new Error("Unauthorized");
-  
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  const role = user?.app_metadata?.staff_role;
-  if (role !== "it_admin" && role !== "business_admin") throw new Error("Requires IT Admin clearance.");
-
-  const { error } = await supabase
-    .from("role_permissions")
-    .upsert({
-       role_id: roleId,
-       entity_type: entityType,
-       can_select: canSelect
-    }, { onConflict: "role_id, entity_type" });
-
-  if (error) throw new Error(error.message);
-  return { success: true };
 }

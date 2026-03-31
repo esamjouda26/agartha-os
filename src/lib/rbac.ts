@@ -1,7 +1,6 @@
 import "server-only";
-import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
-import { unstable_cache } from "next/cache";
+import { type StaffRole, ROLE_PORTAL_ACCESS } from "@/types";
 
 export type RoleTier = "admin" | "management" | "crew";
 
@@ -11,29 +10,35 @@ const TIER_WEIGHTS: Record<RoleTier, number> = {
   crew: 1,
 };
 
-const anonSupabase = createSupabaseClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
-
 /**
- * Cached fetcher for the Route Matrix. Memory-memoized up to 1 Hour.
- * Bypasses RLS natively since the policy globally authorizes SELECTs.
+ * Derives the highest security tier for a staff role directly from the
+ * ROLE_PORTAL_ACCESS constant in types/index.ts.
+ *
+ * Tier rules:
+ *   - Role has "admin" portal access  → admin tier
+ *   - Role has "management" access    → management tier
+ *   - Role has only "crew" access     → crew tier
+ *
+ * Zero DB calls — the mapping is the single source of truth in code.
  */
-export const getRoleAccessMatrix = unstable_cache(
-  async () => {
-    const { data } = await anonSupabase
-      .from("role_route_access")
-      .select("role_id, portal_domain, security_tier");
-    return data || [];
-  },
-  ["role_route_access_matrix"],
-  { tags: ["rbac_matrix"], revalidate: 3600 }
-);
+function getRoleTier(staffRole: string): RoleTier | null {
+  const portals = ROLE_PORTAL_ACCESS[staffRole as StaffRole];
+  if (!portals || portals.length === 0) return null;
+  if (portals.includes("admin")) return "admin";
+  if (portals.includes("management")) return "management";
+  if (portals.includes("crew")) return "crew";
+  return null;
+}
 
 /**
- * Server-side RBAC guard.
- * Mechanically queries the Active Matrix dictionary to determine hierarchical superiority.
+ * Server-side RBAC guard for Server Actions.
+ *
+ * Validates the JWT, extracts staff_role from app_metadata, then derives
+ * the role tier from the ROLE_PORTAL_ACCESS constant. No DB hit required.
+ *
+ * Usage:
+ *   const caller = await requireRole("admin");
+ *   if (!caller) return { success: false, error: "FORBIDDEN" };
  */
 export async function requireRole(
   minimumTier: RoleTier
@@ -45,18 +50,10 @@ export async function requireRole(
   const staffRole = (user.app_metadata?.staff_role as string) ?? null;
   if (!staffRole) return null;
 
-  const matrix = await getRoleAccessMatrix();
-  
-  // Find the highest hierarchical tier this staffRole belongs to
-  let highestWeight = 0;
-  matrix.filter((m) => m.role_id === staffRole).forEach((record) => {
-    const w = TIER_WEIGHTS[record.security_tier as RoleTier];
-    if (w && w > highestWeight) highestWeight = w;
-  });
+  const roleTier = getRoleTier(staffRole);
+  if (!roleTier) return null;
 
-  const requiredWeight = TIER_WEIGHTS[minimumTier];
-  
-  if (highestWeight >= requiredWeight) {
+  if (TIER_WEIGHTS[roleTier] >= TIER_WEIGHTS[minimumTier]) {
     return { id: user.id, staffRole };
   }
 

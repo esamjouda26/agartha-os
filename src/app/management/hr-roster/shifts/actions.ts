@@ -5,11 +5,27 @@ import { revalidatePath } from "next/cache";
 
 export async function getSetupData() {
   const supabase = await createClient();
-  
-  const { data: staff } = await supabase
+
+  // Join profiles to get role and employee_id — both moved there during refactor
+  const { data: staffRaw } = await supabase
     .from("staff_records")
-    .select("id, legal_name, employee_id, role")
+    .select(`
+      id, legal_name,
+      profiles!profiles_staff_record_id_fkey(employee_id, staff_role)
+    `)
     .order("legal_name");
+
+  // Flatten to the shape the client expects: { id, legal_name, employee_id, role }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const staff = (staffRaw ?? []).map((r: any) => {
+    const profile = Array.isArray(r.profiles) ? r.profiles[0] : r.profiles;
+    return {
+      id: r.id,
+      legal_name: r.legal_name,
+      employee_id: profile?.employee_id ?? null,
+      role: profile?.staff_role ?? "fnb_crew", // fallback so grouping never breaks
+    };
+  });
 
   const { data: dict } = await supabase
     .from("shift_dictionary")
@@ -20,12 +36,13 @@ export async function getSetupData() {
     .from("weekly_patterns")
     .select("*");
 
-  return { 
-    staff: staff || [], 
-    dict: dict || [], 
-    patterns: patterns || [] 
+  return {
+    staff,
+    dict: dict ?? [],
+    patterns: patterns ?? [],
   };
 }
+
 
 export async function getDailyShifts(date: string) {
   const supabase = await createClient();

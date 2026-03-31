@@ -1,26 +1,42 @@
-import { Bell } from "lucide-react";
+import { createClient } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
+import AnnouncementsClient from "./announcements-client";
 
-export default function AnnouncementsPage() {
+export default async function AnnouncementsPage() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("staff_role")
+    .eq("id", user.id)
+    .single();
+
+  const role = profile?.staff_role as string | null;
+
+  // Fetch announcements targeting this role or broadcast (target_roles IS NULL)
+  // Filter out expired announcements
+  const { data: announcements } = await supabase
+    .from("announcements")
+    .select("id, title, body, priority, created_at, profiles(display_name)")
+    .or(`target_roles.is.null,target_roles.cs.{${role}}`)
+    .or("expires_at.is.null,expires_at.gt." + new Date().toISOString())
+    .order("priority", { ascending: false })  // critical > urgent > normal
+    .order("created_at", { ascending: false });
+
+  const formatted = (announcements ?? []).map((a: any) => ({
+    id: a.id,
+    title: a.title,
+    body: a.body,
+    priority: a.priority as "normal" | "urgent" | "critical",
+    created_at: a.created_at,
+    created_by_name: a.profiles?.display_name ?? null,
+  }));
+
   return (
-    <div className="max-w-md mx-auto space-y-4">
-      <h1 className="text-2xl font-cinzel text-[#d4af37] font-bold px-2">Announcements</h1>
-      
-      <div className="space-y-4">
-        {[1, 2, 3].map((i) => (
-          <div key={i} className="glass-panel-gold p-5 rounded-xl border border-white/10">
-            <div className="flex items-start gap-4">
-              <div className="w-10 h-10 rounded-full bg-[#d4af37]/10 flex items-center justify-center flex-shrink-0">
-                <Bell className="w-5 h-5 text-[#d4af37]" />
-              </div>
-              <div>
-                <h3 className="text-white font-medium mb-1">Operational Update #{i}</h3>
-                <p className="text-sm text-gray-400">This is a system broadcast visible to all crew members. Please acknowledge upon reading.</p>
-                <p className="text-[10px] text-[#d4af37] tracking-wider mt-3 uppercase">Today, 09:00 AM</p>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
+    <div className="max-w-2xl mx-auto">
+      <AnnouncementsClient announcements={formatted} />
     </div>
   );
 }

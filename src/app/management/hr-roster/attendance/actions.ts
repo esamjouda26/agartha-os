@@ -9,18 +9,36 @@ export async function getLedger(start: string, end: string) {
     .from("shift_schedules")
     .select(`
       *,
-      staff_records ( id, legal_name, employee_id, role ),
+      staff_records (
+        id, legal_name,
+        profiles!profiles_staff_record_id_fkey(employee_id, staff_role)
+      ),
       leave_requests ( id, type, status )
     `)
     .gte("shift_date", start)
     .lte("shift_date", end)
     .order("shift_date", { ascending: false });
-    
+
   if (error) {
     console.error("Ledger Fetch Error:", error);
     return [];
   }
-  return data || [];
+
+  // Flatten profiles into staff_records so clients keep the same access pattern
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (data ?? []).map((row: any) => {
+    const sr = row.staff_records;
+    if (sr) {
+      const profile = Array.isArray(sr.profiles) ? sr.profiles[0] : sr.profiles;
+      row.staff_records = {
+        ...sr,
+        employee_id: profile?.employee_id ?? null,
+        role: profile?.staff_role ?? null,
+        profiles: undefined,
+      };
+    }
+    return row;
+  });
 }
 
 export async function getLeaves() {
@@ -29,7 +47,10 @@ export async function getLeaves() {
     .from("leave_requests")
     .select(`
       *,
-      staff_records ( id, legal_name, employee_id, role )
+      staff_records (
+        id, legal_name,
+        profiles!profiles_staff_record_id_fkey(employee_id, staff_role)
+      )
     `)
     .order("created_at", { ascending: false });
 
@@ -37,7 +58,21 @@ export async function getLeaves() {
     console.error("Leaves Fetch Error:", error);
     return [];
   }
-  return data || [];
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (data ?? []).map((row: any) => {
+    const sr = row.staff_records;
+    if (sr) {
+      const profile = Array.isArray(sr.profiles) ? sr.profiles[0] : sr.profiles;
+      row.staff_records = {
+        ...sr,
+        employee_id: profile?.employee_id ?? null,
+        role: profile?.staff_role ?? null,
+        profiles: undefined,
+      };
+    }
+    return row;
+  });
 }
 
 export async function getDiscrepancies() {
@@ -46,19 +81,37 @@ export async function getDiscrepancies() {
     .from("attendance_discrepancies")
     .select(`
       *,
-      shift_schedules ( 
-        id, shift_date, expected_start_time, expected_end_time, clock_in, clock_out, 
-        staff_records (id, legal_name, employee_id, role) 
+      shift_schedules (
+        id, shift_date, expected_start_time, expected_end_time, clock_in, clock_out,
+        staff_records (
+          id, legal_name,
+          profiles!profiles_staff_record_id_fkey(employee_id, staff_role)
+        )
       )
     `)
     .order("created_at", { ascending: false });
-    
+
   if (error) {
     console.error("Discrepancies Fetch Error:", error);
     return [];
   }
-  return data || [];
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (data ?? []).map((disc: any) => {
+    const sr = disc.shift_schedules?.staff_records;
+    if (sr) {
+      const profile = Array.isArray(sr.profiles) ? sr.profiles[0] : sr.profiles;
+      disc.shift_schedules.staff_records = {
+        ...sr,
+        employee_id: profile?.employee_id ?? null,
+        role: profile?.staff_role ?? null,
+        profiles: undefined,
+      };
+    }
+    return disc;
+  });
 }
+
 
 export async function approveLeave(id: string) {
   const supabase = await createClient();

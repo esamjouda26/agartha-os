@@ -1,147 +1,134 @@
 "use client";
 
-import { useState, useMemo, useRef, useEffect } from "react";
-import { Search, ScanLine, X } from "lucide-react";
+import { useState, useRef } from "react";
+import { Search, Scan, ChevronDown, X } from "lucide-react";
 
-export interface SearchableItem {
+export type SearchableItem = {
   id: string;
   name: string;
-  category: string;
-  barcode?: string | null;
-  price?: number;
-  inStock?: boolean;
-  image_url?: string | null;
-  // Payload for generic usage
-  raw?: any;
-}
+  price?: number | null;
+  category?: string | null;
+  raw?: Record<string, unknown>;
+};
 
-interface ItemSearchSelectProps {
+type Props = {
   items: SearchableItem[];
   onSelect: (item: SearchableItem) => void;
   placeholder?: string;
   disabled?: boolean;
-}
+  groupByField?: keyof SearchableItem;
+  categoryLabels?: Record<string, string>;
+};
 
-export default function ItemSearchSelect({ items, onSelect, placeholder = "Search items...", disabled = false }: ItemSearchSelectProps) {
+export default function ItemSearchSelect({
+  items,
+  onSelect,
+  placeholder = "Search items...",
+  disabled = false,
+  groupByField = "category",
+  categoryLabels = {},
+}: Props) {
   const [query, setQuery] = useState("");
-  const [isOpen, setIsOpen] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(false);
+  const barcodeRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  // Close dropdown on outside click
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+  const filtered = query.trim()
+    ? items.filter((i) => i.name.toLowerCase().includes(query.toLowerCase()))
+    : items;
 
-  // Filter and Group
-  const groupedItems = useMemo(() => {
-    if (!items) return {};
-    const filtered = items.filter(
-      (item) => 
-        item.name.toLowerCase().includes(query.toLowerCase()) || 
-        (item.barcode && item.barcode.includes(query))
-    );
-
-    const groups: Record<string, SearchableItem[]> = {};
-    filtered.forEach((item) => {
-      const cat = item.category || "Uncategorized";
-      if (!groups[cat]) groups[cat] = [];
-      groups[cat].push(item);
-    });
-    return groups;
-  }, [items, query]);
+  // Group results
+  const grouped = new Map<string, SearchableItem[]>();
+  filtered.forEach((item) => {
+    const key = (item[groupByField] as string) ?? "Other";
+    if (!grouped.has(key)) grouped.set(key, []);
+    grouped.get(key)!.push(item);
+  });
 
   function handleSelect(item: SearchableItem) {
     onSelect(item);
     setQuery("");
-    setIsOpen(false);
+    setOpen(false);
   }
 
-  // Formatting category strings safely
-  const formatCatName = (str: string) => str.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
-
   return (
-    <div className="relative flex-1" ref={containerRef}>
+    <div className="relative">
+      {/* Input row */}
       <div className="flex gap-2">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input 
-            type="text"
-            className="w-full bg-black/40 border border-white/10 p-3 pl-10 pr-10 rounded-xl text-white outline-none focus:border-[#d4af37] disabled:opacity-50" 
-            placeholder={placeholder}
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" size={16} />
+          <input
+            ref={inputRef}
             value={query}
-            onChange={(e) => {
-              setQuery(e.target.value);
-              setIsOpen(true);
-            }}
-            onFocus={() => setIsOpen(true)}
+            onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
+            onFocus={() => setOpen(true)}
+            placeholder={placeholder}
             disabled={disabled}
+            className="w-full pl-9 pr-4 py-3.5 bg-black/40 border border-white/10 rounded-xl text-white text-sm placeholder-gray-600 focus:border-[#d4af37] focus:outline-none transition disabled:opacity-50"
           />
           {query && (
-            <button 
-              onClick={() => setQuery("")}
-              className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-white"
+            <button
+              onClick={() => { setQuery(""); setOpen(false); }}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white"
             >
-              <X className="w-4 h-4" />
+              <X size={14} />
             </button>
           )}
         </div>
-        <button 
-          title="Scan Barcode"
+        {/* Barcode scan — hidden file input triggered by button */}
+        <button
           type="button"
+          onClick={() => barcodeRef.current?.click()}
           disabled={disabled}
-          onClick={() => {
-            // Placeholder: Call native bridge or scanner API
-            alert("Camera scanner invoked: Hardware bridge required for production.");
-          }}
-          className="bg-[#d4af37]/20 border border-[#d4af37]/40 text-[#d4af37] p-3 rounded-xl flex items-center justify-center active:scale-95 transition disabled:opacity-50"
+          className="min-w-[44px] min-h-[44px] px-3 rounded-xl bg-black/40 border border-white/10 hover:border-[#d4af37]/50 transition-colors flex items-center justify-center disabled:opacity-50"
+          title="Scan barcode"
         >
-          <ScanLine className="w-6 h-6" />
+          <Scan className="text-gray-400" size={20} />
         </button>
+        <input
+          ref={barcodeRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          className="hidden"
+          onChange={() => {
+            // Production: decode barcode from image, match to items
+            // For now: just opens camera — staff reads barcode manually
+          }}
+        />
       </div>
 
-      {isOpen && (
-        <div className="absolute z-50 top-full left-0 right-0 mt-2 max-h-[350px] overflow-y-auto bg-space border border-[#d4af37]/30 rounded-xl shadow-2xl">
-          {Object.keys(groupedItems).length === 0 ? (
-            <div className="p-4 text-center text-sm text-gray-400">No items found.</div>
-          ) : (
-            Object.entries(groupedItems).map(([category, catItems]) => (
-              <div key={category} className="mb-2">
-                <div className="sticky top-0 bg-space/90 backdrop-blur-md px-4 py-2 text-[10px] font-bold tracking-widest text-[#d4af37] uppercase border-y border-white/5">
-                  {formatCatName(category)}
-                </div>
-                <ul className="py-1">
-                  {catItems.map((item) => (
-                    <li key={item.id}>
-                      <button
-                        type="button"
-                        className={`w-full text-left px-4 py-3 transition flex justify-between items-center ${item.inStock !== false ? 'hover:bg-white/5 cursor-pointer' : 'opacity-50 cursor-not-allowed bg-black/40'}`}
-                        onClick={() => {
-                          if (item.inStock !== false) handleSelect(item);
-                        }}
-                        disabled={item.inStock === false}
-                      >
-                        <div>
-                          <p className={`text-sm font-medium ${item.inStock !== false ? 'text-white' : 'text-gray-500 line-through'}`}>{item.name}</p>
-                          {item.inStock === false && <p className="text-[10px] text-red-500 font-bold uppercase tracking-widest mt-0.5">Out of Stock</p>}
-                          {item.barcode && item.inStock !== false && <p className="text-[10px] text-gray-500 font-mono mt-0.5">BC: {item.barcode}</p>}
-                        </div>
-                        {item.price !== undefined && (
-                          <span className={`font-mono text-sm ${item.inStock !== false ? 'text-[#d4af37]' : 'text-gray-600 line-through'}`}>${Number(item.price).toFixed(2)}</span>
-                        )}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
+      {/* Dropdown */}
+      {open && filtered.length > 0 && (
+        <div className="absolute z-40 top-full mt-1 w-full bg-[#0d0d0d] border border-white/10 rounded-xl shadow-2xl max-h-64 overflow-y-auto">
+          {Array.from(grouped.entries()).map(([cat, catItems]) => (
+            <div key={cat}>
+              <div className="px-3 py-1.5 text-[9px] uppercase tracking-widest text-gray-500 font-bold border-b border-white/5 sticky top-0 bg-[#0d0d0d]">
+                {categoryLabels[cat] ?? cat.replace(/_/g, " ")}
               </div>
-            ))
-          )}
+              {catItems.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onMouseDown={() => handleSelect(item)}
+                  className="w-full text-left flex items-center justify-between px-4 py-3 hover:bg-white/5 transition-colors min-h-[44px]"
+                >
+                  <span className="text-sm text-white">{item.name}</span>
+                  {item.price != null && (
+                    <span className="text-xs text-[#d4af37] font-mono ml-4 shrink-0">
+                      RM {item.price.toFixed(2)}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+          ))}
         </div>
+      )}
+
+      {/* Overlay to close dropdown */}
+      {open && (
+        <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
       )}
     </div>
   );

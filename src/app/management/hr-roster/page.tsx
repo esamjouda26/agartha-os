@@ -1,4 +1,4 @@
-import { fetchStaffRecordsAction } from "./actions";
+import { fetchStaffRecordsAction, fetchDepartmentsAction } from "./actions";
 import HrRosterClient from "./hr-roster-client";
 
 export const metadata = {
@@ -6,28 +6,38 @@ export const metadata = {
 };
 
 export default async function HrRosterPage() {
-  const records = await fetchStaffRecordsAction();
+  const [records, departments] = await Promise.all([
+    fetchStaffRecordsAction(),
+    fetchDepartmentsAction(),
+  ]);
 
-  // Map backend naming to the UI convention expected by the client component
-  const mappedRecords = records.map((r: any) => ({
-    id: r.id,
-    employeeId: r.employee_id || r.id,
-    name: r.legal_name,
-    email: r.email,
-    phone: r.phone || "",
-    address: r.address || "",
-    kinName: r.kin_name || "",
-    kinRel: r.kin_relationship || "",
-    kinPhone: r.kin_phone || "",
-    nationalId: r.national_id_enc || "",
-    bank: r.bank_name || "",
-    account: r.bank_account_enc || "",
-    salary: r.salary_enc || "",
-    role: r.role,
-    startDate: r.contract_start || "",
-    endDate: r.contract_end || null,
-    status: r.employment_status,
-  }));
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const mappedRecords = records.map((r: any) => {
+    // profiles is a one-to-one join but PostgREST returns an array
+    const profile = Array.isArray(r.profiles) ? r.profiles[0] : r.profiles;
+
+    return {
+      id: r.id,
+      employeeId: profile?.employee_id ?? "—",
+      name: r.legal_name,
+      personalEmail: r.personal_email ?? "",
+      workEmail: profile?.email ?? "",
+      phone: r.phone ?? "",
+      address: r.address ?? "",
+      kinName: r.kin_name ?? "",
+      kinRel: r.kin_relationship ?? "",
+      kinPhone: r.kin_phone ?? "",
+      nationalId: r.national_id_enc ?? "",
+      bank: r.bank_name ?? "",
+      account: r.bank_account_enc ?? "",
+      salary: r.salary_enc ?? "",
+      role: profile?.staff_role ?? null,
+      departmentId: r.department_id ?? "",
+      startDate: r.contract_start ?? "",
+      endDate: r.contract_end ?? null,
+      status: profile?.employment_status ?? "pending",
+    };
+  });
 
   return (
     <div className="flex-1 p-6 md:p-10 font-sans relative z-10 space-y-8 animate-in fade-in duration-500">
@@ -41,8 +51,8 @@ export default async function HrRosterPage() {
           </p>
         </div>
       </div>
-      
-      <HrRosterClient initialEmployees={mappedRecords} />
+
+      <HrRosterClient initialEmployees={mappedRecords} departments={departments} />
     </div>
   );
 }

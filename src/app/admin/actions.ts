@@ -6,25 +6,89 @@ import { revalidatePath } from "next/cache";
 
 // ── IAM Access Control ──────────────────────────────────────────────────────
 
-interface StaffUser {
+export interface StaffUser {
   id: string;
+  employee_id: string | null;
   display_name: string | null;
+  email: string | null;
   staff_role: string | null;
-  is_mfa_enabled: boolean;
-  is_locked: boolean;
-  last_sign_in_at: string | null;
+  employment_status: string;
   created_at: string;
+  // Enriched from auth.users via Admin API
+  last_sign_in_at: string | null;
+  is_mfa_enrolled: boolean;
 }
 
 export async function fetchStaffUsersAction(): Promise<StaffUser[]> {
-  const supabase = await createClient();
-  const { data } = await supabase
+  const caller = await requireRole("admin");
+  if (!caller) return [];
+
+  const { createAdminClient } = await import("@/lib/supabase/admin");
+  const supabaseAdmin = createAdminClient();
+
+  // 1. Fetch staff profiles from DB
+  const { data: profiles, error } = await supabaseAdmin
     .from("profiles")
-    .select("id, display_name, staff_role, is_mfa_enabled, is_locked, last_sign_in_at, created_at")
-    .neq("staff_role", null)
+    .select("id, employee_id, display_name, email, staff_role, employment_status, created_at")
+    .not("staff_role", "is", null)
     .order("created_at", { ascending: false });
 
-  return (data ?? []) as StaffUser[];
+  if (error) {
+    console.error("fetchStaffUsersAction error:", error.message);
+    return [];
+  }
+
+  if (!profiles?.length) return [];
+
+  // 2. Bulk fetch auth.users via Admin API (includes last_sign_in_at and MFA factors)
+  // listUsers is paginated — fetch up to 1000 (sufficient for staff)
+  const { data: authData } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1000 });
+  const authMap = new Map(
+    (authData?.users ?? []).map((u) => [
+      u.id,
+      {
+        email: u.email ?? null,
+        last_sign_in_at: u.last_sign_in_at ?? null,
+        // MFA enrolled = has at least one verified TOTP factor
+        is_mfa_enrolled: (u.factors ?? []).some(
+          (f) => f.factor_type === "totp" && f.status === "verified"
+        ),
+      },
+    ])
+  );
+
+  // 3. Merge profiles with auth data
+  // For pre-existing rows where profiles.email was added post-provisioning,
+  // fall back to auth.users.email and backfill the column asynchronously.
+  const toBackfill: { id: string; email: string }[] = [];
+
+  const result = (profiles ?? []).map((p) => {
+    const auth = authMap.get(p.id);
+    const resolvedEmail = (p as StaffUser).email ?? auth?.email ?? null;
+
+    // Queue a backfill if profiles.email is missing but auth has it
+    if (!(p as StaffUser).email && auth?.email) {
+      toBackfill.push({ id: p.id, email: auth.email });
+    }
+
+    return {
+      ...(p as StaffUser),
+      email: resolvedEmail,
+      last_sign_in_at: auth?.last_sign_in_at ?? null,
+      is_mfa_enrolled: auth?.is_mfa_enrolled ?? false,
+    };
+  });
+
+  // Fire-and-forget: backfill profiles.email for pre-existing rows
+  if (toBackfill.length > 0) {
+    Promise.allSettled(
+      toBackfill.map(({ id, email }) =>
+        supabaseAdmin.from("profiles").update({ email }).eq("id", id)
+      )
+    ).catch(() => {}); // non-blocking, best-effort
+  }
+
+  return result;
 }
 
 export async function updateUserRoleAction(userId: string, staffRole: string) {
@@ -41,77 +105,48 @@ export async function updateUserRoleAction(userId: string, staffRole: string) {
 
   if (error) return { success: false, error: (error as { message: string }).message };
 
-  // Audit logging handled by Postgres AFTER trigger on profiles table
-
   revalidatePath("/admin/access-control");
   return { success: true };
 }
 
-export async function toggleUserLockAction(userId: string, lock: boolean) {
+export async function updateEmploymentStatusAction(
+  userId: string,
+  status: "active" | "on_leave" | "suspended" | "terminated"
+) {
   const caller = await requireRole("admin");
   if (!caller) return { success: false, error: "FORBIDDEN" };
 
-  const supabase = await createClient();
-  const performedBy = caller.id;
+  const { createAdminClient } = await import("@/lib/supabase/admin");
+  const supabaseAdmin = createAdminClient();
 
+  // Update profiles table
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error } = await (supabase.from as any)("profiles")
-    .update({
-      is_locked: lock,
-      locked_at: lock ? new Date().toISOString() : null,
-      locked_by: lock ? performedBy : null,
-      locked_reason: lock ? "admin_lock" : null,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", userId);
+  const { error: profileError } = await (supabaseAdmin.from as any)("profiles").update({
+    employment_status: status,
+    updated_at: new Date().toISOString(),
+  }).eq("id", userId);
 
-  if (error) return { success: false, error: error.message };
+  if (profileError) return { success: false, error: profileError.message };
 
-  // Audit logging handled by Postgres AFTER trigger on profiles table
+  // Sync to app_metadata so middleware reads it from JWT without DB calls
+  const { error: metaError } = await supabaseAdmin.auth.admin.updateUserById(userId, {
+    app_metadata: { employment_status: status },
+  });
 
-  revalidatePath("/admin/access-control");
-  return { success: true };
-}
+  if (metaError) return { success: false, error: metaError.message };
 
-// ── Route Access Matrix Controls ─────────────────────────────────────────────
-
-export interface RouteAccessRecord {
-  id: string;
-  role_id: string;
-  portal_domain: string;
-  security_tier: string;
-}
-
-export async function fetchRouteAccessMatrixAction(): Promise<RouteAccessRecord[]> {
-  const caller = await requireRole("admin");
-  if (!caller) throw new Error("Forbidden");
-
-  const supabase = await createClient();
-  const { data } = await supabase.from("role_route_access").select("*").order("role_id");
-  return (data ?? []) as RouteAccessRecord[];
-}
-
-export async function mutateRouteAccessAction(roleId: string, portalDomain: string, securityTier: string, access: boolean) {
-  const caller = await requireRole("admin");
-  if (!caller) return { success: false, error: "FORBIDDEN" };
-
-  const supabase = await createClient();
-
-  if (access) {
-    const { error } = await supabase.from("role_route_access").upsert({
-      role_id: roleId,
-      portal_domain: portalDomain,
-      security_tier: securityTier,
-    }, { onConflict: "role_id, portal_domain" });
-    if (error) return { success: false, error: error.message };
+  // Ban/unban auth account based on status
+  if (status === "terminated" || status === "suspended") {
+    await supabaseAdmin.auth.admin.updateUserById(userId, {
+      ban_duration: status === "terminated" ? "876600h" : "87660h", // 100yr or 10yr
+    });
   } else {
-    const { error } = await supabase
-      .from("role_route_access")
-      .delete()
-      .match({ role_id: roleId, portal_domain: portalDomain });
-    if (error) return { success: false, error: error.message };
+    // Unban: setting ban_duration to "none" lifts the ban
+    await supabaseAdmin.auth.admin.updateUserById(userId, {
+      ban_duration: "none",
+    });
   }
 
-  revalidatePath("/admin/route-matrix");
+  revalidatePath("/admin/access-control");
   return { success: true };
 }

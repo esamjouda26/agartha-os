@@ -3,49 +3,51 @@
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 
-export async function submitLostFoundReport(category: 'lost_report' | 'found_report', description: string, metadata: any) {
+export async function submitLostFoundReport(
+  category: 'lost_report' | 'found_report',
+  description: string,
+  zone_id: string,
+  attachment_url: string | null,
+  metadata: {
+    laf_type: 'lost_child' | 'lost_item' | 'found_child' | 'found_item';
+    item_name: string;
+    guest_name?: string;
+    guest_phone?: string;
+  }
+) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Unauthorized");
 
-  const finalMetadata = {
-    ...metadata,
-    isLostAndFound: true,
-    lafCategory: category // Store logical category here
-  };
-
   const { error } = await supabase.from("incidents").insert({
-    category: "guest_complaint" as any,
+    category,
     description,
-    status: "open" as any, // Adhering to incident_status enum limits
-    metadata: finalMetadata as any,
-    logged_by: user.id, // Column is logged_by, not reported_by based on SQL table
-  } as any);
+    status: "open",
+    zone_id,
+    attachment_url,
+    metadata,
+    logged_by: user.id,
+  });
 
-  if (error) throw new Error("Failed to submit report: " + error.message);
+  if (error) throw new Error("Database Constraint Failure: " + error.message);
   
   revalidatePath("/crew/lost-and-found");
   return { success: true };
 }
 
-export async function updateLostFoundStatus(id: string, newStatus: string, newCategory?: 'found_report') {
+export async function resolveLostFoundIncident(id: string, resolutionPhotoUrl: string | null = null) {
   const supabase = await createClient();
-  
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Unauthorized");
   
-  // Execute the strictly bound PostgreSQL RPC function.
-  // The 'update_laf_status' acts as a SECURITY DEFINER, securely executing the JSONB transition
-  // without granting the user broader access to the incidents table.
-  const { error } = await (supabase.rpc as any)('update_laf_status', {
+  // Natively bypass RLS limitations by bridging through a SECURITY DEFINER Postgres Function.
+  // This physically isolates the UPDATE command from the Crew's restricted JWT.
+  const { error } = await (supabase.rpc as any)('resolve_incident', {
     p_incident_id: id,
-    p_new_status: newStatus,
-    p_new_category: newCategory || null
+    p_attachment_url: resolutionPhotoUrl
   });
-
-  if (error) {
-    throw new Error("RPC Audit Failure: " + error.message);
-  }
+  
+  if (error) throw new Error("Database Access Blocked: " + error.message);
 
   revalidatePath("/crew/lost-and-found");
   return { success: true };

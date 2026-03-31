@@ -20,8 +20,6 @@ const ADMIN_ROUTES = {
     { href: "/admin/system-health", label: "System Health", icon: Server, title: "Global System Health" },
     { href: "/admin/device-registry", label: "Device Registry", icon: MonitorSmartphone, title: "Hardware & IoT Master" },
     { href: "/admin/access-control", label: "IAM Ledger", icon: Shield, title: "User Provisioning & Permissions" },
-    { href: "/admin/rbac-matrix", label: "Zero-Trust ACL", icon: Shield, title: "Database RLS Dictionary" },
-    { href: "/admin/route-matrix", label: "Route Matrix", icon: Shield, title: "Edge Router Dictionary" },
     { href: "/admin/reports", label: "Reports Generator", icon: FileText, title: "Reports Generator" },
     { href: "/admin/audit", label: "Audit Log", icon: FileText, title: "System Audit Log" },
     { href: "/admin/zones", label: "Zone Config", icon: Activity, title: "Zone Configuration" },

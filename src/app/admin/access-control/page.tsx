@@ -3,15 +3,27 @@
 import { useState, useEffect } from "react";
 import {
   ShieldCheck, Users, Key, UserX, Shield,
-  Search, Bell, X,
-  CheckCircle, ClipboardList, MoreHorizontal, Crown,
+  Bell, X,
+  CheckCircle, Crown,
   UserPlus, ArrowRightLeft, ShieldPlus,
+  Ban, PlayCircle, AlertTriangle,
 } from "lucide-react";
 import DomainAuditTable from "@/components/DomainAuditTable";
 import {
+  DataTable,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableCell,
+  TableHead,
+  TableToolbar,
+  TableEmptyState,
+  TablePagination,
+} from "@/components/ui/data-table";
+import {
   fetchStaffUsersAction,
-  updateUserRoleAction,
-  toggleUserLockAction,
+  updateEmploymentStatusAction,
+  type StaffUser,
 } from "../actions";
 import {
   fetchIamRequestsAction,
@@ -20,23 +32,7 @@ import {
   type IamRequest,
 } from "../admin-analytics-actions";
 
-const ALL_STAFF_ROLES = [
-  "it_admin", "business_admin",
-  "fnb_manager", "merch_manager", "maintenance_manager", "inventory_manager",
-  "marketing_manager", "human_resources_manager", "compliance_manager", "operations_manager",
-  "fnb_crew", "service_crew", "giftshop_crew", "runner_crew", "security_crew",
-  "health_crew", "cleaning_crew", "experience_crew", "internal_maintainence_crew",
-] as const;
-
-interface StaffUser {
-  id: string;
-  display_name: string | null;
-  staff_role: string | null;
-  is_mfa_enabled: boolean;
-  is_locked: boolean;
-  last_sign_in_at: string | null;
-  created_at: string;
-}
+// ── Helpers ──────────────────────────────────────────────────────────────────
 
 const roleTier = (role: string | null) => {
   if (!role) return "none";
@@ -55,29 +51,46 @@ const RoleBadge = ({ role }: { role: string | null }) => {
   };
   const Icon = tier === "admin" ? Crown : tier === "management" ? Shield : undefined;
   return (
-    <span className={`inline-flex items-center px-3 py-1 rounded font-mono text-[11px] font-medium tracking-wide ${styles[tier]}`}>
+    <span className={`inline-flex items-center px-2.5 py-0.5 rounded font-mono text-[11px] font-medium tracking-wide ${styles[tier]}`}>
       {Icon && <Icon className="w-3 h-3 mr-1.5 opacity-60" />}
       {role ?? "unassigned"}
     </span>
   );
 };
 
+const StatusBadge = ({ status }: { status: string }) => {
+  const map: Record<string, { cls: string; label: string }> = {
+    active:     { cls: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20", label: "Active" },
+    pending:    { cls: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",   label: "Pending" },
+    on_leave:   { cls: "bg-blue-500/10 text-blue-400 border-blue-500/20",          label: "On Leave" },
+    suspended:  { cls: "bg-red-500/10 text-red-400 border-red-500/20",             label: "Suspended" },
+    terminated: { cls: "bg-orange-500/10 text-orange-400 border-orange-500/20",   label: "Terminated" },
+  };
+  const s = map[status] ?? { cls: "bg-white/5 text-gray-400 border-white/10", label: status };
+  return (
+    <span className={`inline-flex items-center px-2.5 py-0.5 rounded text-[11px] font-semibold border ${s.cls}`}>
+      {s.label}
+    </span>
+  );
+};
+
+// ── Page ─────────────────────────────────────────────────────────────────────
+
 export default function AccessControlPage() {
-  // ── Staff / IAM state ────────────────────────────────────────────────
   const [users, setUsers] = useState<StaffUser[]>([]);
   const [loading, setLoading] = useState(true);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [selectedRole, setSelectedRole] = useState("");
+  const [actionWorking, setActionWorking] = useState<string | null>(null);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [auditOpen, setAuditOpen] = useState(false);
   const [search, setSearch] = useState("");
-  const [page, setPage] = useState(0);
+  const [page, setPage] = useState(1);
   const PAGE_SIZE = 15;
 
-  // IAM Requests (Pending HR / IT queue)
   const [iamRequests, setIamRequests] = useState<IamRequest[]>([]);
   const [iamLoading, setIamLoading] = useState(true);
   const [iamWorking, setIamWorking] = useState<string | null>(null);
+
+  // ── Data loading ───────────────────────────────────────────────────────────
 
   async function load() {
     setLoading(true);
@@ -95,22 +108,28 @@ export default function AccessControlPage() {
 
   useEffect(() => { load(); loadIam(); }, []);
 
+  // ── IAM handlers ──────────────────────────────────────────────────────────
+
   async function handleApprove(id: string) {
     setIamWorking(id);
     const result = await approveIamRequestAction(id);
     if (result.success) {
-      setMessage({ type: "success", text: `Request approved${result.newStatus === "pending_it" ? " (awaiting IT sign-off)" : " and executed"}.` });
+      const detail = result.workEmail ? ` — work email: ${result.workEmail}` : "";
+      setMessage({ type: "success", text: `Request approved and executed${detail}.` });
       loadIam();
+      load();
     } else {
       setMessage({ type: "error", text: result.error ?? "Approval failed" });
     }
     setIamWorking(null);
-    setTimeout(() => setMessage(null), 4000);
+    setTimeout(() => setMessage(null), 6000);
   }
 
   async function handleReject(id: string) {
+    const remark = window.prompt("Enter rejection reason (required):");
+    if (!remark?.trim()) return;
     setIamWorking(id);
-    const result = await rejectIamRequestAction(id);
+    const result = await rejectIamRequestAction(id, remark.trim());
     if (result.success) {
       setMessage({ type: "success", text: "Request rejected." });
       loadIam();
@@ -121,42 +140,53 @@ export default function AccessControlPage() {
     setTimeout(() => setMessage(null), 4000);
   }
 
-  // ── Preserved handlers (zero changes) ───────────────────────────────
-  async function handleRoleChange(userId: string) {
-    const result = await updateUserRoleAction(userId, selectedRole);
+  // ── Status action handler ──────────────────────────────────────────────────
+
+  async function handleStatusChange(
+    userId: string,
+    newStatus: "active" | "on_leave" | "suspended" | "terminated"
+  ) {
+    if (
+      newStatus === "terminated" &&
+      !window.confirm("Permanently terminate this account? This will ban the user from logging in.")
+    ) return;
+
+    setActionWorking(userId);
+    const result = await updateEmploymentStatusAction(userId, newStatus);
     if (result.success) {
-      setMessage({ type: "success", text: "Role updated and audit logged." });
-      setEditingId(null);
+      const labels: Record<string, string> = {
+        active: "Account reactivated.",
+        suspended: "Account suspended.",
+        terminated: "Account terminated.",
+        on_leave: "Account set to On Leave.",
+      };
+      setMessage({ type: "success", text: labels[newStatus] ?? "Status updated." });
       load();
     } else {
-      setMessage({ type: "error", text: result.error ?? "Failed" });
+      setMessage({ type: "error", text: result.error ?? "Failed to update status" });
     }
-    setTimeout(() => setMessage(null), 3000);
+    setActionWorking(null);
+    setTimeout(() => setMessage(null), 4000);
   }
 
-  async function handleToggleLock(userId: string, lock: boolean) {
-    const result = await toggleUserLockAction(userId, lock);
-    if (result.success) {
-      setMessage({ type: "success", text: lock ? "Account locked." : "Account unlocked." });
-      load();
-    } else {
-      setMessage({ type: "error", text: result.error ?? "Failed" });
-    }
-    setTimeout(() => setMessage(null), 3000);
-  }
+  // ── Derived ────────────────────────────────────────────────────────────────
 
-  // ── Derived stats from users[] ───────────────────────────────────────
   const totalUsers = users.length;
-  const mfaUnenrolled = users.filter((u) => !u.is_mfa_enabled).length;
-  const suspended = users.filter((u) => u.is_locked).length;
+  const mfaUnenrolled = users.filter((u) => !u.is_mfa_enrolled).length;
+  const suspended = users.filter((u) => u.employment_status === "suspended" || u.employment_status === "terminated").length;
   const privileged = users.filter((u) => roleTier(u.staff_role) !== "crew" && roleTier(u.staff_role) !== "none").length;
 
   const filtered = users.filter((u) =>
     !search ||
+    (u.employee_id?.toLowerCase().includes(search.toLowerCase())) ||
     (u.display_name?.toLowerCase().includes(search.toLowerCase())) ||
+    (u.email?.toLowerCase().includes(search.toLowerCase())) ||
     (u.staff_role?.toLowerCase().includes(search.toLowerCase())) ||
     u.id.toLowerCase().includes(search.toLowerCase())
   );
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   return (
     <div className="space-y-6 relative">
@@ -212,7 +242,7 @@ export default function AccessControlPage() {
 
           <div className="glass-panel rounded-lg p-5 border border-red-500/20 shadow-[0_0_15px_rgba(239,68,68,0.1)]">
             <p className="text-xs text-red-400 uppercase tracking-widest mb-2 font-semibold flex items-center">
-              <UserX className="w-3.5 h-3.5 mr-1.5" /> Suspended Accounts
+              <UserX className="w-3.5 h-3.5 mr-1.5" /> Suspended / Terminated
             </p>
             <div className="flex items-end justify-between">
               <h4 className="font-orbitron text-3xl font-bold text-white">{loading ? "—" : suspended}</h4>
@@ -232,7 +262,7 @@ export default function AccessControlPage() {
         </div>
       </section>
 
-      {/* ── Pending IAM Requests Panel (live from iam_requests) ──────── */}
+      {/* ── Pending IAM Requests Panel ────────────────────────────────── */}
       <section>
         <div className="glass-panel rounded-lg overflow-hidden border-[rgba(212,175,55,0.2)] shadow-[0_0_20px_rgba(212,175,55,0.08)]">
           <div className="p-4 border-b border-white/10 bg-gradient-to-r from-[rgba(212,175,55,0.05)] to-transparent flex items-center justify-between">
@@ -270,7 +300,6 @@ export default function AccessControlPage() {
                 const isProvisioning = req.request_type === "provisioning";
                 const isTransfer = req.request_type === "transfer";
                 const isWorking = iamWorking === req.id;
-                const isPendingHr = req.status === "pending_hr";
 
                 const IconEl = isProvisioning ? UserPlus : isTransfer ? ArrowRightLeft : ShieldPlus;
                 const iconCls = isProvisioning
@@ -284,7 +313,7 @@ export default function AccessControlPage() {
                   ? "border-blue-500/15 bg-blue-500/[0.03] hover:border-blue-500/30"
                   : "border-yellow-500/15 bg-yellow-500/[0.03] hover:border-yellow-500/30";
 
-                const title = isProvisioning ? "Provision New Staff" : isTransfer ? "Role Transfer" : "RBAC Escalation";
+                const title = isProvisioning ? "Provision New Staff" : isTransfer ? "Role Transfer" : "Termination Request";
                 const elapsed = Math.round((Date.now() - new Date(req.created_at).getTime()) / 60000);
                 const elapsedStr = elapsed < 60 ? `${elapsed}m ago` : elapsed < 1440 ? `${Math.round(elapsed / 60)}h ago` : `${Math.round(elapsed / 1440)}d ago`;
 
@@ -304,16 +333,18 @@ export default function AccessControlPage() {
                         <p className="text-sm text-white font-bold">{title}</p>
                         <p className="text-[10px] text-gray-400 truncate">
                           {req.legal_name ? (
-                            <><span className="text-[#d4af37]">{req.legal_name}</span>{" "}{req.employee_id ? `(${req.employee_id})` : ""}
+                            <><span className="text-[#d4af37]">{req.legal_name}</span>
                             {req.current_role && <>{" → "}<span className="font-mono text-gray-300">{req.target_role}</span></>}</>
                           ) : (
                             <>Target role: <span className="font-mono text-gray-300">{req.target_role ?? "—"}</span></>
                           )}
                         </p>
                         <p className="text-[9px] text-gray-600 mt-0.5">
-                          {elapsedStr} — status: <span className={isPendingHr ? "text-yellow-400" : "text-blue-400"}>{req.status.replace("_", " ")}</span>
-                          {isPendingHr && <span className="ml-1 text-yellow-500">— awaiting HR first</span>}
+                          {elapsedStr} — status: <span className="text-blue-400">{req.status.replace("_", " ")}</span>
                         </p>
+                        {req.hr_remark && (
+                          <p className="text-[9px] text-gray-500 mt-0.5 italic">"{req.hr_remark}"</p>
+                        )}
                       </div>
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0 ml-3">
@@ -322,7 +353,7 @@ export default function AccessControlPage() {
                         disabled={isWorking}
                         className={`px-3 py-1.5 text-xs font-bold rounded border transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${approveBtnCls}`}
                       >
-                        {isWorking ? "…" : isPendingHr ? "HR Approve" : "IT Approve"}
+                        {isWorking ? "…" : "IT Approve"}
                       </button>
                       <button
                         onClick={() => handleReject(req.id)}
@@ -340,198 +371,171 @@ export default function AccessControlPage() {
         </div>
       </section>
 
-      {/* ── Master IAM Ledger Table ────────────────────────────────────── */}
+      {/* ── Master IAM Ledger Table ─────────────────────────────────────── */}
       <section>
-        <div className="glass-panel rounded-lg overflow-hidden flex flex-col min-h-[500px]">
-          {/* Filter bar */}
-          <div className="p-4 border-b border-white/10 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-[#020408]/40">
-            <div className="relative flex-1 max-w-md">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-              <input
-                type="text"
-                placeholder="Search by Name or Role..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full bg-[#020408] border border-white/10 text-sm text-white rounded-md pl-10 pr-4 py-2 focus:outline-none focus:border-[rgba(212,175,55,0.5)] focus:ring-1 focus:ring-[rgba(212,175,55,0.3)] transition-all placeholder-gray-600"
-              />
+        <div className="glass-panel rounded-lg overflow-hidden flex flex-col">
+          <div className="p-4 border-b border-white/10 bg-[#020408]/40 flex items-center justify-between">
+            <div>
+              <h3 className="font-cinzel text-base text-white tracking-wide">Staff Identity Ledger</h3>
+              <p className="text-[10px] text-gray-500 uppercase tracking-widest mt-0.5">All provisioned accounts — status management</p>
             </div>
+            <span className="text-xs text-gray-500 font-mono">{filtered.length} records</span>
           </div>
 
-          {/* Table */}
-          <div className="overflow-x-auto">
-            {loading ? (
-              <div className="flex items-center justify-center py-16">
-                <div className="w-6 h-6 border-2 border-[#d4af37] border-t-transparent rounded-full animate-spin" />
-              </div>
-            ) : filtered.length === 0 ? (
-              <p className="text-center text-gray-500 py-16">No staff accounts found.</p>
-            ) : (
-              <table className="w-full text-left text-sm whitespace-nowrap">
-                <thead className="text-xs text-gray-500 uppercase tracking-wider bg-[#010204] border-b border-white/10">
-                  <tr>
-                    <th className="px-6 py-4 font-semibold w-32">
-                      IT Lockout
-                    </th>
-                    <th className="px-6 py-4 font-semibold">User Identity</th>
-                    <th className="px-6 py-4 font-semibold">Assigned Role</th>
-                    <th className="px-6 py-4 font-semibold">Security / MFA</th>
-                    <th className="px-6 py-4 font-semibold">Last Active</th>
-                    <th className="px-6 py-4 font-semibold text-right w-36">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/5">
-                  {filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE).map((u) => {
-                    const tier = roleTier(u.staff_role);
-                    const isEditing = editingId === u.id;
-                    const initial = (u.display_name ?? "?")[0].toUpperCase();
-                    const avatarColor = tier === "admin" ? "border-[rgba(212,175,55,0.3)] text-[#d4af37]" :
-                      tier === "management" ? "border-blue-500/30 text-blue-400" :
-                        "border-white/10 text-gray-400";
+          <TableToolbar
+            search={search}
+            setSearch={(v: string) => { setSearch(v); setPage(1); }}
+            searchPlaceholder="Search by name, email, role, or ID…"
+          />
+
+          {loading ? (
+            <div className="flex items-center justify-center py-20">
+              <div className="w-6 h-6 border-2 border-[#d4af37] border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : (
+            <DataTable minWidth="900px">
+              <TableHeader>
+                <tr>
+                  <TableHead className="w-36">Employee ID</TableHead>
+                  <TableHead>Full Name</TableHead>
+                  <TableHead>Work Email</TableHead>
+                  <TableHead>Role</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Security / MFA</TableHead>
+                  <TableHead>Last Sign In</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </tr>
+              </TableHeader>
+              <TableBody>
+                {paginated.length === 0 ? (
+                  <TableEmptyState colSpan={8} message="No staff accounts match your search." />
+                ) : (
+                  paginated.map((u) => {
+                    const isWorking = actionWorking === u.id;
+                    const isRevoked = u.employment_status === "suspended" || u.employment_status === "terminated";
+
                     return (
-                      <tr
+                      <TableRow
                         key={u.id}
-                        className={`hover:bg-white/[0.02] transition-colors group ${u.is_locked ? "bg-red-500/[0.05] opacity-75" : ""}`}
+                        className={isRevoked ? "opacity-60" : ""}
                       >
-                        {/* Lockout toggle — bound to handleToggleLock */}
-                        <td className="px-6 py-4">
-                          <div className="flex flex-col items-start">
-                            <button
-                              onClick={() => handleToggleLock(u.id, !u.is_locked)}
-                              className={`relative inline-block w-10 h-5 rounded-full transition-colors duration-200 border ${u.is_locked ? "bg-red-500 border-red-400" : "bg-green-500 border-green-400"}`}
-                              title="IT/Cybersecurity Emergency Lockout"
-                              aria-label={u.is_locked ? "Unlock account" : "Lock account"}
-                            >
-                              <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform duration-200 ${u.is_locked ? "translate-x-0 left-0.5" : "translate-x-5 left-0"}`} />
-                            </button>
-                            <span className={`text-[8px] mt-1 uppercase tracking-widest font-semibold ${u.is_locked ? "text-red-400" : "text-gray-600"}`}>
-                              {u.is_locked ? "Locked Out" : "Active"}
+                        {/* Employee ID */}
+                        <TableCell>
+                          <span className="font-mono text-xs font-semibold text-[#d4af37]/80 tracking-wider">
+                            {u.employee_id ?? u.id.slice(0, 8).toUpperCase()}
+                          </span>
+                        </TableCell>
+
+                        {/* Full Name */}
+                        <TableCell>
+                          <div className="flex items-center gap-2.5">
+                            <div className={`w-7 h-7 rounded flex items-center justify-center text-xs font-bold border ${roleTier(u.staff_role) === "admin" ? "border-[rgba(212,175,55,0.3)] text-[#d4af37] bg-[rgba(212,175,55,0.08)]" : roleTier(u.staff_role) === "management" ? "border-blue-500/30 text-blue-400 bg-blue-500/5" : "border-white/10 text-gray-400 bg-white/[0.03]"}`}>
+                              {(u.display_name ?? "?")[0].toUpperCase()}
+                            </div>
+                            <span className={`text-sm font-semibold ${isRevoked ? "text-gray-500 line-through decoration-red-500/50" : "text-gray-200"}`}>
+                              {u.display_name ?? "—"}
                             </span>
                           </div>
-                        </td>
+                        </TableCell>
 
-                        {/* User Identity */}
-                        <td className="px-6 py-4">
-                          <div className="flex items-center space-x-3">
-                            <div className={`w-8 h-8 rounded bg-[#020408] border ${avatarColor} flex items-center justify-center font-bold text-sm`}>
-                              {initial}
-                            </div>
-                            <div>
-                              <p className={`font-bold mb-0.5 ${u.is_locked ? "text-gray-400 line-through decoration-red-500" : "text-gray-200"}`}>
-                                {u.display_name ?? "—"}
-                              </p>
-                              <p className="text-[10px] text-gray-500 font-mono tracking-wide">{u.id.slice(0, 14)}…</p>
-                            </div>
-                          </div>
-                        </td>
+                        {/* Work Email */}
+                        <TableCell>
+                          <span className="text-xs text-gray-400 font-mono">{u.email ?? "—"}</span>
+                        </TableCell>
 
-                        {/* Role — editable, bound to updateUserRoleAction */}
-                        <td className="px-6 py-4">
-                          {isEditing ? (
-                            <select
-                              value={selectedRole}
-                              onChange={(e) => setSelectedRole(e.target.value)}
-                              className="h-8 rounded border border-white/10 bg-[#020408] px-2 text-xs text-white focus:border-[rgba(212,175,55,0.5)] focus:outline-none"
-                              style={{ colorScheme: "dark" }}
-                            >
-                              <option value="">Select role…</option>
-                              {ALL_STAFF_ROLES.map((r) => (
-                                <option key={r} value={r}>{r}</option>
-                              ))}
-                            </select>
-                          ) : (
-                            <RoleBadge role={u.staff_role} />
-                          )}
-                        </td>
+                        {/* Role */}
+                        <TableCell>
+                          <RoleBadge role={u.staff_role} />
+                        </TableCell>
+
+                        {/* Employment Status */}
+                        <TableCell>
+                          <StatusBadge status={u.employment_status} />
+                        </TableCell>
 
                         {/* MFA */}
-                        <td className="px-6 py-4">
-                          {u.is_mfa_enabled ? (
+                        <TableCell>
+                          {u.is_mfa_enrolled ? (
                             <span className="flex items-center text-green-400 text-xs">
-                              <ShieldCheck className="w-3.5 h-3.5 mr-1.5" /> MFA Enrolled
+                              <ShieldCheck className="w-3.5 h-3.5 mr-1.5" /> Enrolled
                             </span>
                           ) : (
-                            <span className="flex items-center text-gray-400 text-xs">
-                              <Key className="w-3.5 h-3.5 mr-1.5 text-yellow-500" /> Not Enrolled
+                            <span className="flex items-center text-yellow-500/80 text-xs">
+                              <Key className="w-3.5 h-3.5 mr-1.5" /> Not Enrolled
                             </span>
                           )}
-                        </td>
+                        </TableCell>
 
-                        {/* Last Active */}
-                        <td className="px-6 py-4 text-gray-400 text-xs font-mono">
-                          {u.last_sign_in_at ? new Date(u.last_sign_in_at).toLocaleDateString() : "Never"}
-                        </td>
+                        {/* Last Sign In */}
+                        <TableCell>
+                          <span className="text-xs text-gray-500 font-mono">
+                            {u.last_sign_in_at
+                              ? new Date(u.last_sign_in_at).toLocaleString("en-MY", {
+                                  dateStyle: "medium",
+                                  timeStyle: "short",
+                                })
+                              : <span className="italic text-gray-600">Never</span>}
+                          </span>
+                        </TableCell>
 
-                        {/* Actions — bound to handleRoleChange / handleToggleLock */}
-                        <td className="px-6 py-4 text-right">
-                          <div className="flex items-center justify-end gap-1">
-                            {isEditing ? (
-                              <>
-                                <button
-                                  disabled={!selectedRole}
-                                  onClick={() => handleRoleChange(u.id)}
-                                  className="px-2 py-1.5 text-xs font-bold rounded bg-[rgba(212,175,55,0.2)] text-[#d4af37] border border-[rgba(212,175,55,0.4)] hover:bg-[rgba(212,175,55,0.3)] disabled:opacity-40 disabled:cursor-not-allowed transition"
-                                >
-                                  Save
-                                </button>
-                                <button
-                                  onClick={() => setEditingId(null)}
-                                  className="p-1.5 text-gray-500 hover:text-white hover:bg-white/10 rounded transition-colors"
-                                >
-                                  <X className="w-4 h-4" />
-                                </button>
-                              </>
+                        {/* Actions */}
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            {isWorking ? (
+                              <div className="w-4 h-4 border border-[#d4af37] border-t-transparent rounded-full animate-spin" />
                             ) : (
                               <>
-                                <button
-                                  onClick={() => { setEditingId(u.id); setSelectedRole(u.staff_role ?? ""); }}
-                                  className="p-1.5 text-gray-500 hover:text-[#d4af37] hover:bg-[rgba(212,175,55,0.1)] rounded transition-colors"
-                                  title="Edit Role"
-                                >
-                                  <ClipboardList className="w-4 h-4" />
-                                </button>
-                                <button
-                                  className="p-1.5 text-gray-500 hover:text-white hover:bg-white/10 rounded transition-colors"
-                                  title="More Actions"
-                                >
-                                  <MoreHorizontal className="w-4 h-4" />
-                                </button>
+                                {/* Activate — show if suspended/terminated */}
+                                {(u.employment_status === "suspended" || u.employment_status === "terminated") && (
+                                  <button
+                                    onClick={() => handleStatusChange(u.id, "active")}
+                                    className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-semibold rounded border border-emerald-500/30 text-emerald-400 bg-emerald-500/5 hover:bg-emerald-500/15 transition-colors"
+                                    title="Reactivate account"
+                                  >
+                                    <PlayCircle className="w-3.5 h-3.5" /> Activate
+                                  </button>
+                                )}
+
+                                {/* Suspend — show if active/pending/on_leave */}
+                                {(u.employment_status === "active" || u.employment_status === "pending" || u.employment_status === "on_leave") && (
+                                  <button
+                                    onClick={() => handleStatusChange(u.id, "suspended")}
+                                    className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-semibold rounded border border-red-500/30 text-red-400 bg-red-500/5 hover:bg-red-500/15 transition-colors"
+                                    title="Suspend account"
+                                  >
+                                    <Ban className="w-3.5 h-3.5" /> Suspend
+                                  </button>
+                                )}
+
+                                {/* Terminate — show only if not already terminated */}
+                                {u.employment_status !== "terminated" && (
+                                  <button
+                                    onClick={() => handleStatusChange(u.id, "terminated")}
+                                    className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-semibold rounded border border-orange-500/30 text-orange-400 bg-orange-500/5 hover:bg-orange-500/15 transition-colors"
+                                    title="Permanently terminate"
+                                  >
+                                    <AlertTriangle className="w-3.5 h-3.5" /> Terminate
+                                  </button>
+                                )}
                               </>
                             )}
                           </div>
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     );
-                  })}
-                </tbody>
-              </table>
-            )}
-          </div>
+                  })
+                )}
+              </TableBody>
+            </DataTable>
+          )}
 
-          {/* Footer with Pagination */}
-          <div className="p-4 border-t border-white/10 flex items-center justify-between text-xs text-gray-400 bg-[#020408]/40 mt-auto">
-            <span>Showing {Math.min(page * PAGE_SIZE + 1, filtered.length)}–{Math.min((page + 1) * PAGE_SIZE, filtered.length)} of {filtered.length} accounts</span>
-            {filtered.length > PAGE_SIZE && (
-              <div className="flex items-center space-x-1 font-sans">
-                <button
-                  onClick={() => setPage((p) => Math.max(0, p - 1))}
-                  disabled={page === 0}
-                  className="px-3 py-1.5 rounded border border-white/10 hover:bg-white/5 transition-colors disabled:opacity-50"
-                >Prev</button>
-                {Array.from({ length: Math.min(Math.ceil(filtered.length / PAGE_SIZE), 5) }, (_, i) => (
-                  <button
-                    key={i}
-                    onClick={() => setPage(i)}
-                    className={`px-3 py-1.5 rounded border transition-colors ${page === i ? "bg-[rgba(212,175,55,0.2)] text-[#d4af37] border-[rgba(212,175,55,0.3)]" : "border-white/10 hover:bg-white/5"}`}
-                  >{i + 1}</button>
-                ))}
-                <button
-                  onClick={() => setPage((p) => Math.min(Math.ceil(filtered.length / PAGE_SIZE) - 1, p + 1))}
-                  disabled={page >= Math.ceil(filtered.length / PAGE_SIZE) - 1}
-                  className="px-3 py-1.5 rounded border border-white/10 hover:bg-white/5 transition-colors disabled:opacity-50"
-                >Next</button>
-              </div>
-            )}
-          </div>
+          <TablePagination
+            page={page}
+            totalPages={totalPages}
+            totalRecords={filtered.length}
+            pageSize={PAGE_SIZE}
+            setPage={setPage}
+          />
         </div>
       </section>
 
