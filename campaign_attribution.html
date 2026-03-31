@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Campaign Performance & Attribution</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Inter:wght@300;400;500;600&family=Orbitron:wght@400;500;700&family=Fira+Code:wght@400;500&display=swap"
+        rel="stylesheet">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        space: '#020408',
+                        panel: 'rgba(10, 20, 30, 0.7)',
+                        gold: '#d4af37',
+                        bronze: '#806b45',
+                    },
+                    fontFamily: {
+                        cinzel: ['Cinzel', 'serif'],
+                        inter: ['Inter', 'sans-serif'],
+                        orbitron: ['Orbitron', 'sans-serif'],
+                        mono: ['Fira Code', 'monospace'],
+                    }
+                }
+            }
+        }
+    </script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(212, 175, 55, 0.2);
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(212, 175, 55, 0.5);
+        }
+
+        .glass-panel {
+            background-color: rgba(10, 20, 30, 0.6);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .glass-panel:hover {
+            border-color: rgba(212, 175, 55, 0.3);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+        }
+
+        select {
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%23d4af37' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+            background-position: right 0.5rem center;
+            background-repeat: no-repeat;
+            background-size: 1.5em 1.5em;
+        }
+
+        body {
+            background-color: transparent;
+            color: #e2e8f0;
+        }
+
+        input[type="number"]::-webkit-inner-spin-button,
+        input[type="number"]::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+
+        .toggle-checkbox:checked {
+            right: 0;
+            border-color: #d4af37;
+        }
+
+        .toggle-checkbox:checked+.toggle-label {
+            background-color: rgba(212, 175, 55, 0.2);
+            border-color: #d4af37;
+        }
+
+        .toggle-checkbox:checked+.toggle-label:after {
+            transform: translateX(100%);
+            border-color: white;
+        }
+
+        .toggle-label {
+            width: 44px;
+            height: 24px;
+            background-color: rgba(255, 255, 255, 0.1);
+            border-radius: 9999px;
+            position: relative;
+            cursor: pointer;
+            transition: all 0.3s;
+            border: 1px solid transparent;
+            display: block;
+        }
+
+        .toggle-label:after {
+            content: '';
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 18px;
+            height: 18px;
+            background-color: #9ca3af;
+            border-radius: 50%;
+            transition: all 0.3s;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+        }
+
+        th.sortable:hover {
+            color: #d4af37;
+            cursor: pointer;
+        }
+
+        .chart-toggle-btn {
+            padding: 4px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .chart-toggle-btn.active {
+            background-color: rgba(255, 255, 255, 0.1);
+            color: white;
+            border-color: rgba(212, 175, 55, 0.5);
+        }
+
+        .chart-toggle-btn:not(.active):hover {
+            color: white;
+            background-color: rgba(255, 255, 255, 0.05);
+        }
+    </style>
+</head>
+
+<body class="font-inter p-6 space-y-8 h-screen overflow-y-auto pb-24 relative">
+
+    <!-- Global Header & Controls -->
+    <div class="flex flex-col md:flex-row md:items-start justify-between gap-4 mb-6">
+        <div>
+            <h3 class="font-cinzel text-xl text-gold flex items-center tracking-wider">
+                <i data-lucide="trending-up" class="w-6 h-6 mr-3"></i> Campaign Performance & Attribution
+            </h3>
+            <p class="text-xs text-gray-400 mt-1 uppercase tracking-widest">Global Ad Spend & ROI Tracking</p>
+        </div>
+        <div
+            class="glass-panel rounded-lg p-2 flex items-center justify-between w-fit md:ml-auto border-gold/20 shadow-[0_4px_15px_rgba(0,0,0,0.3)]">
+            <div class="flex items-center space-x-1" id="global-date-filters">
+                <button onclick="setGlobalDate('Today', this)"
+                    class="date-btn px-4 py-1.5 text-sm font-medium rounded text-gray-400 hover:text-gray-200 hover:bg-white/5 transition-colors">Today</button>
+                <button onclick="setGlobalDate('7D', this)"
+                    class="date-btn px-4 py-1.5 text-sm font-medium rounded text-gray-400 hover:text-gray-200 hover:bg-white/5 transition-colors">7D</button>
+                <button onclick="setGlobalDate('MTD', this)"
+                    class="date-btn active px-4 py-1.5 text-sm font-bold rounded bg-gold/20 text-gold border border-gold/50 shadow-[0_0_10px_rgba(212,175,55,0.2)] transition-all">MTD</button>
+                <button onclick="setGlobalDate('YTD', this)"
+                    class="date-btn px-4 py-1.5 text-sm font-medium rounded text-gray-400 hover:text-gray-200 hover:bg-white/5 transition-colors">YTD</button>
+            </div>
+            <div class="w-px h-6 bg-white/10 mx-2"></div>
+            <button
+                class="flex items-center px-4 py-1.5 text-sm font-medium rounded text-gray-400 hover:text-gold hover:bg-gold/10 transition-colors group">
+                <i data-lucide="calendar" class="w-4 h-4 mr-2 group-hover:text-gold transition-colors"></i> Custom Range
+            </button>
+        </div>
+    </div>
+
+    <section>
+        <!-- KPI Summary Row -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <div
+                class="glass-panel p-5 rounded-lg border-l-4 border-l-red-500/50 flex flex-col justify-between cursor-pointer hover:border-l-red-500 hover:scale-[1.02] hover:shadow-[0_0_15px_rgba(239,68,68,0.2)] transition-all">
+                <p class="text-[10px] text-gray-500 uppercase tracking-widest mb-1 font-semibold flex items-center">
+                    <i data-lucide="dollar-sign" class="w-3 h-3 mr-1"></i> Total Ad Spend
+                </p>
+                <div class="flex items-baseline space-x-2">
+                    <p class="text-2xl font-orbitron font-bold text-white" id="kpi-spend">$0</p>
+                </div>
+            </div>
+            <div
+                class="glass-panel p-5 rounded-lg border-l-4 border-l-green-500/50 flex flex-col justify-between cursor-pointer hover:border-l-green-500 hover:scale-[1.02] hover:shadow-[0_0_15px_rgba(34,197,94,0.2)] transition-all">
+                <p class="text-[10px] text-gray-500 uppercase tracking-widest mb-1 font-semibold flex items-center">
+                    <i data-lucide="credit-card" class="w-3 h-3 mr-1"></i> Attributed Revenue
+                </p>
+                <div class="flex items-baseline space-x-2">
+                    <p class="text-2xl font-orbitron font-bold text-green-400" id="kpi-revenue">$0</p>
+                </div>
+            </div>
+            <div
+                class="glass-panel p-5 rounded-lg border-l-4 border-l-gold/50 flex flex-col justify-between cursor-pointer hover:border-l-gold hover:scale-[1.02] hover:shadow-[0_0_15px_rgba(212,175,55,0.2)] transition-all">
+                <p class="text-[10px] text-gray-500 uppercase tracking-widest mb-1 font-semibold flex items-center">
+                    <i data-lucide="refresh-cw" class="w-3 h-3 mr-1"></i> Blended ROAS
+                </p>
+                <div class="flex items-baseline space-x-2">
+                    <p class="text-2xl font-orbitron font-bold text-gold" id="kpi-roas">0x</p>
+                </div>
+            </div>
+            <div
+                class="glass-panel p-5 rounded-lg border-l-4 border-l-blue-500/50 flex flex-col justify-between cursor-pointer hover:border-l-blue-500 hover:scale-[1.02] hover:shadow-[0_0_15px_rgba(59,130,246,0.2)] transition-all">
+                <p class="text-[10px] text-gray-500 uppercase tracking-widest mb-1 font-semibold flex items-center">
+                    <i data-lucide="target" class="w-3 h-3 mr-1"></i> Blended CAC
+                </p>
+                <div class="flex items-baseline space-x-2">
+                    <p class="text-2xl font-orbitron font-bold text-blue-400" id="kpi-cac">$0</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+            <!-- Efficiency Curve Chart -->
+            <div class="xl:col-span-2 glass-panel p-5 rounded-lg flex flex-col min-h-[400px]">
+                <div class="flex items-center justify-between mb-6 flex-shrink-0">
+                    <h4 class="text-xs text-gray-400 uppercase tracking-widest font-semibold flex items-center">
+                        <i data-lucide="activity" class="w-4 h-4 mr-2 text-gold"></i> Efficiency Curve (Spend vs CAC)
+                    </h4>
+                    <div class="flex bg-space rounded border border-white/10 p-0.5" id="eff-date-filters">
+                        <button onclick="setChartAggr('efficiency', 'D', this)"
+                            class="w-7 h-6 flex items-center justify-center text-xs font-bold rounded bg-gold/10 text-gold shadow-[0_0_8px_rgba(212,175,55,0.3)] border border-gold/40 transition-all">D</button>
+                        <button onclick="setChartAggr('efficiency', 'W', this)"
+                            class="w-7 h-6 flex items-center justify-center text-xs font-medium text-gray-500 hover:text-gray-300 transition-colors">W</button>
+                        <button onclick="setChartAggr('efficiency', 'M', this)"
+                            class="w-7 h-6 flex items-center justify-center text-xs font-medium text-gray-500 hover:text-gray-300 transition-colors">M</button>
+                    </div>
+                </div>
+                <div class="flex-1 relative w-full h-full min-h-[300px]">
+                    <canvas id="efficiencyChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Active Campaigns Data Grid -->
+            <div class="xl:col-span-1 glass-panel p-5 rounded-lg flex flex-col overflow-hidden max-h-[500px]">
+                <div class="flex items-center justify-between mb-4 shrink-0">
+                    <h4 class="text-xs text-gray-400 uppercase tracking-widest font-semibold flex items-center">
+                        <i data-lucide="radio" class="w-4 h-4 mr-2 text-gold"></i> Active Campaigns
+                    </h4>
+                </div>
+                <div class="overflow-y-auto flex-1 pr-2">
+                    <div class="space-y-3" id="campaigns-grid">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Sales by Traffic Source -->
+    <section class="mt-10">
+        <h4 class="font-cinzel text-sm text-gray-300 uppercase tracking-widest mb-4 border-b border-white/10 pb-2">Sales
+            by Traffic Source</h4>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+            <!-- Traffic Source Ledger -->
+            <div class="glass-panel rounded-lg flex flex-col overflow-hidden">
+                <div class="p-4 border-b border-white/10 bg-space/40 flex justify-between items-center">
+                    <h4 class="text-xs text-gray-400 uppercase tracking-widest font-semibold flex items-center">
+                        <i data-lucide="link" class="w-4 h-4 mr-2 text-gold"></i> Traffic Source Ledger
+                    </h4>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-sm whitespace-nowrap">
+                        <thead class="text-xs text-gray-500 uppercase tracking-wider bg-[#010204]">
+                            <tr>
+                                <th class="px-5 py-3 font-semibold sortable" onclick="sortTable('sourceTable', 0)">
+                                    Traffic Source <i class="inline-block w-3 h-3" data-lucide="arrow-up-down"></i></th>
+                                <th class="px-5 py-3 font-semibold sortable text-right"
+                                    onclick="sortTable('sourceTable', 1)">Tickets Sold <i class="inline-block w-3 h-3"
+                                        data-lucide="arrow-up-down"></i></th>
+                                <th class="px-5 py-3 font-semibold sortable text-right"
+                                    onclick="sortTable('sourceTable', 2)">Gross Revenue <i class="inline-block w-3 h-3"
+                                        data-lucide="arrow-up-down"></i></th>
+                            </tr>
+                        </thead>
+                        <tbody id="sourceTable" class="divide-y divide-white/5 font-mono text-xs">
+                            <!-- Populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Audience Breakdown by Campaign -->
+            <div class="glass-panel p-5 rounded-lg flex flex-col">
+                <div class="flex items-center justify-between mb-6">
+                    <h4 class="text-xs text-gray-400 uppercase tracking-widest font-semibold flex items-center">
+                        <i data-lucide="users" class="w-4 h-4 mr-2 text-gold"></i> Audience Breakdown by Campaign
+                    </h4>
+                    <select
+                        class="bg-space/60 border border-white/10 text-xs text-gray-300 rounded-md px-3 py-1.5 pr-8 focus:outline-none focus:border-gold/50 cursor-pointer"
+                        onchange="updateAudienceChart(this.value)">
+                        <option value="tier">Tier Performance</option>
+                        <option value="group">Group Composition</option>
+                        <option value="demographics" selected>Demographics</option>
+                    </select>
+                </div>
+                <div class="flex-1 relative w-full h-full min-h-[300px]">
+                    <canvas id="cartChart"></canvas>
+                </div>
+            </div>
+
+        </div>
+    </section>
+
+    <!-- Toast Notification -->
+    <div id="toast"
+        class="fixed bottom-8 right-8 bg-green-500/20 border border-green-500/40 text-green-400 px-6 py-3 rounded-lg shadow-lg backdrop-blur-sm text-sm font-semibold flex items-center space-x-2 transition-all duration-300 translate-y-20 opacity-0 pointer-events-none z-50">
+        <i data-lucide="check-circle" class="w-5 h-5"></i>
+        <span id="toast-msg">Budget Updated</span>
+    </div>
+
+    <script>
+        lucide.createIcons();
+
+        // ── Data Mocks ──
+        const mockData = {
+            kpis: {
+                spend: 14500,
+                revenue: 49300,
+                roas: 3.4,
+                cac: 15.2
+            },
+            efficiency: {
+                D: {
+                    labels: ['Mar 1', 'Mar 2', 'Mar 3', 'Mar 4', 'Mar 5', 'Mar 6', 'Mar 7'],
+                    spend: [1500, 1800, 2100, 1900, 2500, 2200, 2500],
+                    cac: [14.5, 15.0, 16.2, 14.8, 17.5, 15.1, 15.2]
+                },
+                W: {
+                    labels: ['Week 1', 'Week 2', 'Week 3', 'Week 4'],
+                    spend: [3500, 3800, 4100, 3100],
+                    cac: [15.1, 14.8, 15.6, 15.3]
+                },
+                M: {
+                    labels: ['Jan', 'Feb', 'Mar'],
+                    spend: [14500, 16000, 14500],
+                    cac: [15.5, 15.2, 15.2]
+                }
+            },
+            campaigns: [
+                { id: 'camp_1', platform: 'Meta', name: 'Retargeting_Video_1', status: true, budget: 150, impressions: 45000, clicks: 1200, cpc: 0.85 },
+                { id: 'camp_2', platform: 'Meta', name: 'Lookalike_Audiences', status: true, budget: 300, impressions: 80000, clicks: 2100, cpc: 1.15 },
+                { id: 'camp_3', platform: 'Google', name: 'Search_Brand_Keywords', status: true, budget: 100, impressions: 15000, clicks: 3500, cpc: 0.45 },
+                { id: 'camp_4', platform: 'TikTok', name: 'Creator_Showcase', status: false, budget: 200, impressions: 120000, clicks: 1800, cpc: 1.50 },
+                { id: 'camp_5', platform: 'Google', name: 'Display_Promo', status: false, budget: 50, impressions: 10000, clicks: 150, cpc: 1.20 }
+            ],
+            sources: [
+                { source: 'meta / ad_feed', tickets: 1240, revenue: 24800 },
+                { source: 'google / search', tickets: 850, revenue: 17000 },
+                { source: 'tiktok / video', tickets: 320, revenue: 6400 },
+                { source: 'direct / none', tickets: 150, revenue: 3000 },
+                { source: 'email / newsletter', tickets: 85, revenue: 1700 }
+            ],
+            audienceViews: {
+                tier: {
+                    labels: ['Retargeting_Video_1', 'Lookalike', 'Search_Brand', 'TikTok_Creator'],
+                    datasets: [
+                        { label: 'Skimmer', data: [300, 450, 600, 250], backgroundColor: 'rgba(212, 175, 55, 0.8)' },
+                        { label: 'Swimmer', data: [120, 80, 250, 40], backgroundColor: 'rgba(59, 130, 246, 0.8)' },
+                        { label: 'Diver', data: [30, 15, 60, 10], backgroundColor: 'rgba(16, 185, 129, 0.8)' }
+                    ]
+                },
+                group: {
+                    labels: ['Retargeting_Video_1', 'Lookalike', 'Search_Brand', 'TikTok_Creator'],
+                    datasets: [
+                        { label: 'solo', data: [150, 200, 350, 100], backgroundColor: 'rgba(212, 175, 55, 0.8)' },
+                        { label: 'Couples', data: [180, 220, 320, 120], backgroundColor: 'rgba(59, 130, 246, 0.8)' },
+                        { label: 'Groups(3+)', data: [90, 110, 180, 70], backgroundColor: 'rgba(16, 185, 129, 0.8)' }
+                    ]
+                },
+                demographics: {
+                    labels: ['Retargeting_Video_1', 'Lookalike', 'Search_Brand', 'TikTok_Creator'],
+                    datasets: [
+                        { label: 'Adults', data: [370, 450, 810, 130], backgroundColor: 'rgba(212, 175, 55, 0.8)' },
+                        { label: 'Children', data: [50, 80, 40, 160], backgroundColor: 'rgba(59, 130, 246, 0.8)' }
+                    ]
+                }
+            }
+        };
+
+        // ── Formatting Options ──
+        const fmtCur = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+        const fmtCurDec = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 });
+        const fmtNum = new Intl.NumberFormat('en-US');
+
+        let effChartInstance = null;
+        let cartChartInstance = null;
+        let currentSort = { col: null, asc: true };
+        let activeEffAggr = 'D';
+        let activeAudienceView = 'demographics';
+
+        function setGlobalDate(range, element) {
+            let container = document.getElementById('global-date-filters');
+            let buttons = container.querySelectorAll('.date-btn');
+            buttons.forEach(btn => {
+                btn.className = "date-btn px-4 py-1.5 text-sm font-medium rounded text-gray-400 hover:text-gray-200 hover:bg-white/5 transition-colors";
+            });
+            element.className = "date-btn active px-4 py-1.5 text-sm font-bold rounded bg-gold/20 text-gold border border-gold/50 shadow-[0_0_10px_rgba(212,175,55,0.2)] transition-all";
+
+            // Re-trigger updateDashboard mock data flow
+            updateDashboard();
+        }
+
+        // ── Main UI Update ──
+        function updateDashboard() {
+            // Update KPIs
+            document.getElementById('kpi-spend').textContent = fmtCur.format(mockData.kpis.spend);
+            document.getElementById('kpi-revenue').textContent = fmtCur.format(mockData.kpis.revenue);
+            document.getElementById('kpi-roas').textContent = mockData.kpis.roas + 'x';
+            document.getElementById('kpi-cac').textContent = fmtCurDec.format(mockData.kpis.cac);
+
+            renderCampaignsGrid();
+            renderSourceTable();
+            renderCharts();
+        }
+
+        function renderCampaignsGrid() {
+            const container = document.getElementById('campaigns-grid');
+            container.innerHTML = '';
+
+            mockData.campaigns.forEach(c => {
+                let pIcon = 'link';
+                if (c.platform === 'Meta') pIcon = 'facebook';
+                if (c.platform === 'Google') pIcon = 'search';
+                if (c.platform === 'TikTok') pIcon = 'music';
+
+                const card = document.createElement('div');
+                card.className = "bg-space border border-white/5 rounded-md p-3 flex flex-col space-y-3";
+                card.innerHTML = `
+                    <div class="flex items-center justify-between">
+                        <div class="flex flex-col">
+                            <span class="text-[10px] text-gray-500 uppercase tracking-widest flex items-center font-semibold">
+                                <i data-lucide="${pIcon}" class="w-3 h-3 mr-1"></i> ${c.platform}
+                            </span>
+                            <span class="text-sm font-bold text-gray-200 mt-1 truncate max-w-[150px]" title="${c.name}">${c.name}</span>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <span class="text-[10px] text-gray-500 font-bold uppercase ${c.status ? 'text-green-400' : ''}" id="status-label-${c.id}">${c.status ? 'Active' : 'Paused'}</span>
+                            <div class="relative inline-block w-11 mr-2 align-middle select-none transition duration-200 ease-in">
+                                <input type="checkbox" name="toggle" id="toggle-${c.id}" class="toggle-checkbox absolute block w-5 h-5 rounded-full bg-white border-4 appearance-none cursor-pointer z-10 opacity-0" ${c.status ? 'checked' : ''} onchange="toggleCampaign('${c.id}')"/>
+                                <label for="toggle-${c.id}" class="toggle-label"></label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-4 gap-2 border-t border-white/5 pt-2">
+                        <div class="col-span-2">
+                            <p class="text-[9px] text-gray-500 uppercase tracking-widest mb-1">Daily Budget</p>
+                            <div class="relative flex items-center group">
+                                <span class="absolute left-2 text-gold text-xs font-mono">$</span>
+                                <input type="number" id="budget-${c.id}" value="${c.budget}" class="w-full bg-black/40 border border-white/10 group-hover:border-white/30 rounded text-xs text-white pl-5 pr-7 py-1 focus:outline-none focus:border-gold/50 font-mono transition-colors" onkeydown="handleBudgetKey(event, '${c.id}')">
+                                <button onclick="saveBudget('${c.id}')" class="absolute right-1 text-gray-400 hover:text-gold transition-colors p-1 rounded hover:bg-white/5" title="Save Budget">
+                                    <i data-lucide="save" class="w-3 h-3"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="col-span-1 text-center border-l justify-center flex flex-col border-white/5">
+                            <p class="text-[9px] text-gray-500 uppercase tracking-widest mb-1">Impr</p>
+                            <span class="text-xs font-mono text-gray-300">${(c.impressions / 1000).toFixed(1)}k</span>
+                        </div>
+                        <div class="col-span-1 text-center justify-center flex flex-col border-l border-white/5">
+                            <p class="text-[9px] text-gray-500 uppercase tracking-widest mb-1">CPC</p>
+                            <span class="text-xs font-mono text-gray-300">$${c.cpc.toFixed(2)}</span>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+            lucide.createIcons();
+        }
+
+        function toggleCampaign(id) {
+            const c = mockData.campaigns.find(cam => cam.id === id);
+            c.status = !c.status;
+            const label = document.getElementById(`status-label-${id}`);
+            label.textContent = c.status ? 'Active' : 'Paused';
+            if (c.status) {
+                label.classList.add('text-green-400');
+            } else {
+                label.classList.remove('text-green-400');
+            }
+            showToast(`${c.name} ${c.status ? 'Resumed' : 'Paused'}`);
+        }
+
+        function handleBudgetKey(e, id) {
+            if (e.key === 'Enter') {
+                saveBudget(id);
+            }
+        }
+
+        function saveBudget(id) {
+            const val = document.getElementById(`budget-${id}`).value;
+            const c = mockData.campaigns.find(cam => cam.id === id);
+            if (val && !isNaN(val)) {
+                c.budget = parseFloat(val);
+                showToast(`Budget for ${c.name} updated to $${c.budget}`);
+            }
+        }
+
+        function renderSourceTable() {
+            const tbody = document.getElementById('sourceTable');
+            tbody.innerHTML = '';
+
+            mockData.sources.forEach(row => {
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-white/[0.02] transition-colors';
+                tr.innerHTML = `
+                    <td class="px-5 py-3 text-gold font-semibold">${row.source}</td>
+                    <td class="px-5 py-3 text-gray-300 text-right">${fmtNum.format(row.tickets)}</td>
+                    <td class="px-5 py-3 text-green-400 text-right font-bold">${fmtCur.format(row.revenue)}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function sortTable(tableId, colIdx) {
+            currentSort.asc = currentSort.col === colIdx ? !currentSort.asc : true;
+            currentSort.col = colIdx;
+
+            mockData.sources.sort((a, b) => {
+                let valA, valB;
+                if (colIdx === 0) { valA = a.source; valB = b.source; }
+                else if (colIdx === 1) { valA = a.tickets; valB = b.tickets; }
+                else if (colIdx === 2) { valA = a.revenue; valB = b.revenue; }
+
+                if (valA < valB) return currentSort.asc ? -1 : 1;
+                if (valA > valB) return currentSort.asc ? 1 : -1;
+                return 0;
+            });
+            renderSourceTable();
+        }
+
+        function setChartAggr(chartId, aggr, element) {
+            let container = document.getElementById('eff-date-filters');
+            let buttons = container.querySelectorAll('button');
+            buttons.forEach(btn => {
+                btn.className = "w-7 h-6 flex items-center justify-center text-xs font-medium text-gray-500 hover:text-gray-300 transition-colors";
+            });
+            element.className = "w-7 h-6 flex items-center justify-center text-xs font-bold rounded bg-gold/10 text-gold shadow-[0_0_8px_rgba(212,175,55,0.3)] border border-gold/40 transition-all";
+
+            if (chartId === 'efficiency') {
+                activeEffAggr = aggr;
+                effChartInstance.data.labels = mockData.efficiency[aggr].labels;
+                effChartInstance.data.datasets[0].data = mockData.efficiency[aggr].spend;
+                effChartInstance.data.datasets[1].data = mockData.efficiency[aggr].cac;
+                effChartInstance.update();
+            }
+        }
+
+        function updateAudienceChart(view) {
+            activeAudienceView = view;
+            if (cartChartInstance) {
+                cartChartInstance.data = mockData.audienceViews[view];
+                cartChartInstance.update();
+            }
+        }
+
+        function renderCharts() {
+            Chart.defaults.color = '#9ca3af';
+            Chart.defaults.font.family = "'Fira Code', monospace";
+
+            // Efficiency Curve
+            const effCtx = document.getElementById('efficiencyChart').getContext('2d');
+            if (effChartInstance) effChartInstance.destroy();
+            effChartInstance = new Chart(effCtx, {
+                type: 'bar',
+                data: {
+                    labels: mockData.efficiency[activeEffAggr].labels,
+                    datasets: [
+                        {
+                            label: 'Ad Spend ($)',
+                            data: mockData.efficiency[activeEffAggr].spend,
+                            backgroundColor: 'rgba(212, 175, 55, 0.4)',
+                            borderColor: 'rgba(212, 175, 55, 1)',
+                            borderWidth: 1,
+                            yAxisID: 'y',
+                            order: 2
+                        },
+                        {
+                            label: 'CAC ($)',
+                            data: mockData.efficiency[activeEffAggr].cac,
+                            type: 'line',
+                            borderColor: 'rgba(59, 130, 246, 1)',
+                            backgroundColor: 'rgba(59, 130, 246, 1)',
+                            borderWidth: 2,
+                            tension: 0.3,
+                            pointRadius: 4,
+                            pointBackgroundColor: '#020408',
+                            yAxisID: 'y1',
+                            order: 1
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        legend: { position: 'top', labels: { usePointStyle: true, boxWidth: 8 } },
+                        tooltip: { backgroundColor: 'rgba(10, 20, 30, 0.9)', titleColor: '#d4af37', displayColors: false, padding: 12 }
+                    },
+                    scales: {
+                        x: { grid: { color: 'rgba(255, 255, 255, 0.05)' } },
+                        y: {
+                            type: 'linear', position: 'left',
+                            grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                            title: { display: true, text: 'Spend', color: '#806b45' }
+                        },
+                        y1: {
+                            type: 'linear', position: 'right',
+                            grid: { drawOnChartArea: false },
+                            title: { display: true, text: 'CAC', color: '#3b82f6' }
+                        }
+                    }
+                }
+            });
+
+            // Audience Breakdown
+            const cartCtx = document.getElementById('cartChart').getContext('2d');
+            if (cartChartInstance) cartChartInstance.destroy();
+            cartChartInstance = new Chart(cartCtx, {
+                type: 'bar',
+                data: mockData.audienceViews[activeAudienceView],
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'top', labels: { usePointStyle: true, boxWidth: 8 } },
+                        tooltip: {
+                            mode: 'nearest',
+                            backgroundColor: 'rgba(10, 20, 30, 0.9)',
+                            titleColor: '#d4af37',
+                            padding: 12,
+                            callbacks: {
+                                label: function (context) {
+                                    return context.dataset.label + ': ' + context.parsed.y + ' tickets';
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: { stacked: true, grid: { color: 'rgba(255, 255, 255, 0.05)' } },
+                        y: { stacked: true, grid: { color: 'rgba(255, 255, 255, 0.05)' }, title: { display: true, text: 'Total Tickets Sold', color: '#9ca3af' } }
+                    }
+                }
+            });
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toast-msg').textContent = msg;
+            toast.classList.remove('translate-y-20', 'opacity-0', 'pointer-events-none');
+            setTimeout(() => toast.classList.add('translate-y-20', 'opacity-0', 'pointer-events-none'), 3000);
+        }
+
+        // Init
+        setTimeout(updateDashboard, 100);
+
+    </script>
+</body>
+
+</html>

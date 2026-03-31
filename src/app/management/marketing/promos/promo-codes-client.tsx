@@ -164,10 +164,15 @@ export default function PromoCodesClient({ promoCodes }: { promoCodes: PromoCode
 
                   return (
                     <tr key={p.id} className="hover:bg-white/[0.02] transition-colors border-l-2 border-transparent hover:border-l-[#d4af37]">
-                      <td className="px-6 py-4">
-                        <span className="text-[#d4af37] font-bold tracking-wider font-mono bg-[#d4af37]/10 px-2 py-1 rounded border border-[#d4af37]/20">
+                      <td className="px-6 py-4 flex flex-col items-start gap-1">
+                        <span className="text-[#d4af37] font-bold tracking-wider font-mono bg-[#d4af37]/10 px-2 py-1 rounded border border-[#d4af37]/20 text-xs">
                           {p.code}
                         </span>
+                        {p.campaigns?.name && (
+                          <span className="text-[9px] text-gray-500 uppercase tracking-widest font-semibold flex items-center">
+                            <Tag className="w-3 h-3 mr-1 text-[#d4af37]" /> {p.campaigns.name}
+                          </span>
+                        )}
                       </td>
                       <td className="px-6 py-4">
                         <div className="w-full">
@@ -221,10 +226,15 @@ export default function PromoCodesClient({ promoCodes }: { promoCodes: PromoCode
                     : "Disabled";
                   return (
                     <tr key={p.id} className="hover:bg-white/[0.02] transition-colors border-l-2 border-transparent">
-                      <td className="px-6 py-4">
-                        <span className="text-gray-400 font-bold tracking-wider bg-white/5 px-2 py-1 rounded border border-white/10">
+                      <td className="px-6 py-4 flex flex-col items-start gap-1">
+                        <span className="text-gray-400 font-bold tracking-wider font-mono bg-white/5 px-2 py-1 rounded border border-white/10 text-xs">
                           {p.code}
                         </span>
+                        {p.campaigns?.name && (
+                          <span className="text-[9px] text-gray-500 uppercase tracking-widest font-semibold flex items-center">
+                            <Tag className="w-3 h-3 mr-1" /> {p.campaigns.name}
+                          </span>
+                        )}
                       </td>
                       <td className="px-6 py-4">
                         <span className={`text-[10px] font-bold tracking-widest uppercase border px-2 py-1 rounded-full ${reasonCls}`}>
@@ -269,6 +279,8 @@ export default function PromoCodesClient({ promoCodes }: { promoCodes: PromoCode
             {/* Modal Body */}
             <div className="p-6 space-y-6">
               <form className="space-y-6" onSubmit={handleCreatePromo}>
+                <input type="hidden" name="schedule_type" value={modalType} />
+
                 {/* Code Name */}
                 <div className="space-y-3">
                   <label className="block text-xs text-gray-400 uppercase tracking-widest font-semibold">Code Name</label>
@@ -278,6 +290,17 @@ export default function PromoCodesClient({ promoCodes }: { promoCodes: PromoCode
                     className="w-full bg-[#020408] border border-white/10 rounded text-sm text-white px-3 py-2 focus:outline-none focus:border-[#d4af37]/50 font-mono tracking-wider uppercase transition-colors placeholder-gray-600"
                     placeholder="e.g. FLASH20"
                     required
+                  />
+                </div>
+
+                {/* Description */}
+                <div className="space-y-3">
+                  <label className="block text-xs text-gray-400 uppercase tracking-widest font-semibold">Description</label>
+                  <textarea
+                    name="description"
+                    rows={2}
+                    className="w-full bg-[#020408] border border-white/10 rounded text-sm text-white px-3 py-2 focus:outline-none focus:border-[#d4af37]/50 transition-colors placeholder-gray-600 resize-none"
+                    placeholder="Brief details about this promo..."
                   />
                 </div>
 
@@ -305,25 +328,30 @@ export default function PromoCodesClient({ promoCodes }: { promoCodes: PromoCode
                   <input type="number" name="max_uses" className="w-full bg-[#020408] border border-white/10 rounded text-sm text-white px-3 py-2 focus:outline-none focus:border-[#d4af37]/50 font-mono transition-colors" placeholder="e.g. 500" required />
                 </div>
 
+                {/* Rules */}
                 <div className="border-t border-white/10 my-2" />
 
-                {/* Valid Tiers */}
                 <div className="space-y-3">
                   <label className="block text-xs text-gray-400 uppercase tracking-widest font-semibold">Valid Tiers</label>
                   <div className="grid grid-cols-3 gap-2">
-                    {["Skimmer", "Swimmer", "Diver"].map((tier) => (
-                      <label key={tier} className="flex items-center space-x-2 text-sm text-gray-300 cursor-pointer hover:text-white transition-colors">
-                        <input type="checkbox" className="accent-[#d4af37]" defaultChecked={tier !== "Diver"} />
-                        <span>{tier}</span>
-                      </label>
-                    ))}
+                    <label className="flex items-center space-x-2 text-sm text-gray-300 cursor-pointer group hover:text-white transition-colors">
+                      <input type="checkbox" name="tier_skimmer" className="w-4 h-4 rounded border-white/20 accent-[#d4af37] bg-transparent" defaultChecked />
+                      <span>Skimmer</span>
+                    </label>
+                    <label className="flex items-center space-x-2 text-sm text-gray-300 cursor-pointer group hover:text-white transition-colors">
+                      <input type="checkbox" name="tier_swimmer" className="w-4 h-4 rounded border-white/20 accent-[#d4af37] bg-transparent" defaultChecked />
+                      <span>Swimmer</span>
+                    </label>
+                    <label className="flex items-center space-x-2 text-sm text-gray-300 cursor-pointer group hover:text-white transition-colors">
+                      <input type="checkbox" name="tier_diver" className="w-4 h-4 rounded border-white/20 accent-[#d4af37] bg-transparent" />
+                      <span>Diver</span>
+                    </label>
                   </div>
                 </div>
 
-                {/* Min Group Size */}
                 <div className="space-y-3">
                   <label className="block text-xs text-gray-400 uppercase tracking-widest font-semibold">Minimum Group Size</label>
-                  <input type="number" className="w-full bg-[#020408] border border-white/10 rounded text-sm text-white px-3 py-2 focus:outline-none focus:border-[#d4af37]/50 font-mono transition-colors" placeholder="e.g. 1" min={1} defaultValue={1} required />
+                  <input type="number" name="min_group_size" className="w-full bg-[#020408] border border-white/10 rounded text-sm text-white px-3 py-2 focus:outline-none focus:border-[#d4af37]/50 font-mono transition-colors" placeholder="e.g. 1" min={1} defaultValue={1} required />
                 </div>
 
                 <div className="border-t border-white/10 my-2" />
@@ -335,21 +363,21 @@ export default function PromoCodesClient({ promoCodes }: { promoCodes: PromoCode
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <label className="block text-[10px] text-gray-500 uppercase tracking-widest font-semibold mb-1">Start Date</label>
-                        <input type="date" className="w-full bg-[#020408] border border-white/10 rounded text-sm text-gray-300 px-3 py-2 focus:outline-none focus:border-[#d4af37]/50 cursor-pointer" />
+                        <input type="date" name="start_date" className="w-full bg-[#020408] border border-white/10 rounded text-sm text-gray-300 px-3 py-2 focus:outline-none focus:border-[#d4af37]/50 cursor-pointer" required />
                       </div>
                       <div>
                         <label className="block text-[10px] text-gray-500 uppercase tracking-widest font-semibold mb-1">End Date</label>
-                        <input type="date" className="w-full bg-[#020408] border border-white/10 rounded text-sm text-gray-300 px-3 py-2 focus:outline-none focus:border-[#d4af37]/50 cursor-pointer" />
+                        <input type="date" name="end_date" className="w-full bg-[#020408] border border-white/10 rounded text-sm text-gray-300 px-3 py-2 focus:outline-none focus:border-[#d4af37]/50 cursor-pointer" required />
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <label className="block text-[10px] text-gray-500 uppercase tracking-widest font-semibold mb-1">Start Time</label>
-                        <input type="time" className="w-full bg-[#020408] border border-white/10 rounded text-sm text-gray-300 px-3 py-2 focus:outline-none focus:border-[#d4af37]/50 cursor-pointer" />
+                        <input type="time" name="start_time" className="w-full bg-[#020408] border border-white/10 rounded text-sm text-gray-300 px-3 py-2 focus:outline-none focus:border-[#d4af37]/50 cursor-pointer" required />
                       </div>
                       <div>
                         <label className="block text-[10px] text-gray-500 uppercase tracking-widest font-semibold mb-1">End Time</label>
-                        <input type="time" className="w-full bg-[#020408] border border-white/10 rounded text-sm text-gray-300 px-3 py-2 focus:outline-none focus:border-[#d4af37]/50 cursor-pointer" />
+                        <input type="time" name="end_time" className="w-full bg-[#020408] border border-white/10 rounded text-sm text-gray-300 px-3 py-2 focus:outline-none focus:border-[#d4af37]/50 cursor-pointer" required />
                       </div>
                     </div>
                   </div>
@@ -362,29 +390,29 @@ export default function PromoCodesClient({ promoCodes }: { promoCodes: PromoCode
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <label className="block text-[10px] text-gray-500 uppercase tracking-widest font-semibold mb-1">Start Date</label>
-                        <input type="date" className="w-full bg-[#020408] border border-white/10 rounded text-sm text-gray-300 px-3 py-2 focus:outline-none focus:border-[#d4af37]/50 cursor-pointer" />
+                        <input type="date" name="start_date" className="w-full bg-[#020408] border border-white/10 rounded text-sm text-gray-300 px-3 py-2 focus:outline-none focus:border-[#d4af37]/50 cursor-pointer" required />
                       </div>
                       <div>
                         <label className="block text-[10px] text-gray-500 uppercase tracking-widest font-semibold mb-1">End Date</label>
-                        <input type="date" className="w-full bg-[#020408] border border-white/10 rounded text-sm text-gray-300 px-3 py-2 focus:outline-none focus:border-[#d4af37]/50 cursor-pointer" />
+                        <input type="date" name="end_date" className="w-full bg-[#020408] border border-white/10 rounded text-sm text-gray-300 px-3 py-2 focus:outline-none focus:border-[#d4af37]/50 cursor-pointer" required />
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <label className="block text-[10px] text-gray-500 uppercase tracking-widest font-semibold mb-1">Start Time</label>
-                        <input type="time" className="w-full bg-[#020408] border border-white/10 rounded text-sm text-gray-300 px-3 py-2 focus:outline-none focus:border-[#d4af37]/50 cursor-pointer" />
+                        <input type="time" name="start_time" className="w-full bg-[#020408] border border-white/10 rounded text-sm text-gray-300 px-3 py-2 focus:outline-none focus:border-[#d4af37]/50 cursor-pointer" required />
                       </div>
                       <div>
                         <label className="block text-[10px] text-gray-500 uppercase tracking-widest font-semibold mb-1">End Time</label>
-                        <input type="time" className="w-full bg-[#020408] border border-white/10 rounded text-sm text-gray-300 px-3 py-2 focus:outline-none focus:border-[#d4af37]/50 cursor-pointer" />
+                        <input type="time" name="end_time" className="w-full bg-[#020408] border border-white/10 rounded text-sm text-gray-300 px-3 py-2 focus:outline-none focus:border-[#d4af37]/50 cursor-pointer" required />
                       </div>
                     </div>
-                    <div>
+                    <div className="mt-4">
                       <label className="block text-[10px] text-gray-500 uppercase tracking-widest font-semibold mb-2">Valid Visit Days</label>
                       <div className="flex flex-wrap gap-3">
-                        {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day, idx) => (
-                          <label key={day} className="flex items-center space-x-1.5 text-sm text-gray-300 cursor-pointer hover:text-white transition-colors">
-                            <input type="checkbox" className="accent-[#d4af37]" defaultChecked={idx < 5} />
+                        {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map(day => (
+                          <label key={day} className="flex items-center space-x-1.5 text-sm text-gray-300 cursor-pointer group hover:text-white transition-colors">
+                            <input type="checkbox" name={`day_${day.toLowerCase()}`} className="w-3.5 h-3.5 rounded border-white/20 accent-[#d4af37] bg-transparent" defaultChecked={["Mon", "Tue", "Wed", "Thu", "Fri"].includes(day)} />
                             <span>{day}</span>
                           </label>
                         ))}

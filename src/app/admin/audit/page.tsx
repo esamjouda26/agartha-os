@@ -17,7 +17,7 @@ export default function AdminAuditPage() {
 
       {/* ── Global Audit Table ────────────────────────────────────────── */}
       <DomainAuditTable
-        entityTypes={["product", "time_slot", "device", "role", "profile", "zone", "incident", "staff_record", "maintenance_work_order"]}
+        entityTypes={["ALL"]}
         title="Global Audit Trail"
       />
     </div>

@@ -14,10 +14,7 @@ export interface PromoCodeRow {
   status: string;
   valid_from: string | null;
   valid_to: string | null;
-  min_group_size: number | null;
-  valid_tiers: string[] | null;
-  valid_days: number[] | null;
-  campaigns: { name: string } | null;
+  campaigns?: { name: string } | null;
 }
 
 /* ── Page (Server Component — fetches data) ───────────────────────── */
@@ -25,7 +22,7 @@ export default async function MarketingPromosPage() {
   const supabase = await createClient();
   const { data } = await supabase
     .from("promo_codes")
-    .select("id, code, description, discount_type, discount_value, max_uses, current_uses, status, valid_from, valid_to, min_group_size, valid_tiers, valid_days, campaigns(name)")
+    .select("id, code, description, discount_type, discount_value, max_uses, current_uses, status, valid_from, valid_to, campaigns(name)")
     .order("status")
     .order("code") as { data: PromoCodeRow[] | null };
 

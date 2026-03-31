@@ -14,6 +14,8 @@ interface AuditEntry {
   old_values: Record<string, unknown> | null;
   new_values: Record<string, unknown> | null;
   performed_by: string | null;
+  performer_role?: string;
+  ip_address: string | null;
   created_at: string;
 }
 
@@ -70,8 +72,9 @@ export default function DomainAuditTable({ entityTypes, title = "Audit Trail" }:
                   <tr className="border-b border-border">
                     <th className="text-left py-2 px-3 text-[10px] uppercase tracking-widest text-muted-foreground font-bold">Time</th>
                     <th className="text-left py-2 px-3 text-[10px] uppercase tracking-widest text-muted-foreground font-bold">Action</th>
-                    <th className="text-left py-2 px-3 text-[10px] uppercase tracking-widest text-muted-foreground font-bold">Entity</th>
-                    <th className="text-left py-2 px-3 text-[10px] uppercase tracking-widest text-muted-foreground font-bold">Changes</th>
+                    <th className="text-left py-2 px-3 text-[10px] uppercase tracking-widest text-muted-foreground font-bold">Entity Type (ID)</th>
+                    <th className="text-left py-2 px-3 text-[10px] uppercase tracking-widest text-muted-foreground font-bold">Operator / IP</th>
+                    <th className="text-left py-2 px-3 text-[10px] uppercase tracking-widest text-muted-foreground font-bold">Delta Payload</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -86,11 +89,21 @@ export default function DomainAuditTable({ entityTypes, title = "Audit Trail" }:
                       <td className="py-2.5 px-3">
                         <span className="text-foreground font-medium">{entry.entity_type}</span>
                         {entry.entity_id && (
-                          <span className="text-muted-foreground text-[10px] ml-1 font-mono">{entry.entity_id.slice(0, 8)}</span>
+                          <div className="text-muted-foreground text-[10px] font-mono mt-0.5">{entry.entity_id}</div>
                         )}
                       </td>
-                      <td className="py-2.5 px-3 text-xs text-muted-foreground max-w-xs truncate">
-                        {entry.new_values ? JSON.stringify(entry.new_values).slice(0, 80) : "—"}
+                      <td className="py-2.5 px-3 flex flex-col items-start justify-center">
+                        <span className="text-foreground text-xs font-semibold">{entry.performer_role ? entry.performer_role.replace(/_/g, ' ') : (entry.performed_by ? entry.performed_by.slice(0, 8) : "System")}</span>
+                        {entry.ip_address && (
+                          <span className="text-muted-foreground text-[10px] font-mono mt-0.5">{entry.ip_address}</span>
+                        )}
+                      </td>
+                      <td className="py-2.5 px-3 text-xs text-muted-foreground max-w-sm truncate whitespace-normal">
+                        {entry.new_values && Object.keys(entry.new_values).length > 0 ? (
+                           <div className="font-mono text-[10px] text-gray-400 bg-muted/20 px-2 py-1.5 rounded">{JSON.stringify(entry.new_values)}</div>
+                        ) : entry.old_values ? (
+                           <div className="font-mono text-[8px] text-red-500/80 bg-red-500/10 px-2 py-1.5 rounded">DEL: {JSON.stringify(entry.old_values)}</div>
+                        ) : "—"}
                       </td>
                     </tr>
                   ))}

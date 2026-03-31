@@ -18,7 +18,7 @@ export async function createProductAction(payload: {
   if (!user) return { error: "UNAUTHORIZED" };
 
   const staffRole = (user.app_metadata?.staff_role as string) ?? null;
-  const allowedRoles = ["business_admin", "it_admin", "merch_manager", "inventory_manager"];
+  const allowedRoles = ["business_admin", "it_admin", "merch_manager", "inventory_manager", "fnb_manager"];
   if (!staffRole || !allowedRoles.includes(staffRole)) {
     return { error: "FORBIDDEN - You do not have permission to modify the Product Catalog." };
   }
@@ -52,7 +52,7 @@ export async function createSupplierAction(formData: FormData) {
   if (!user) return { error: "UNAUTHORIZED" };
 
   const staffRole = (user.app_metadata?.staff_role as string) ?? null;
-  const allowedRoles = ["business_admin", "it_admin", "merch_manager", "inventory_manager"];
+  const allowedRoles = ["business_admin", "it_admin", "merch_manager", "inventory_manager", "fnb_manager"];
   if (!staffRole || !allowedRoles.includes(staffRole)) {
     return { error: "FORBIDDEN - You do not have permission to modify Suppliers." };
   }
@@ -81,7 +81,7 @@ export async function updateSupplierAction(supplierId: string, formData: FormDat
   if (!user) return { error: "UNAUTHORIZED" };
 
   const staffRole = (user.app_metadata?.staff_role as string) ?? null;
-  const allowedRoles = ["business_admin", "it_admin", "merch_manager", "inventory_manager"];
+  const allowedRoles = ["business_admin", "it_admin", "merch_manager", "inventory_manager", "fnb_manager"];
   if (!staffRole || !allowedRoles.includes(staffRole)) {
     return { error: "FORBIDDEN - You do not have permission to modify Suppliers." };
   }
@@ -114,7 +114,7 @@ export async function updatePOStatusAction(poId: string, newStatus: string) {
   if (!user) return { error: "UNAUTHORIZED" };
 
   const staffRole = (user.app_metadata?.staff_role as string) ?? null;
-  if (!["business_admin", "it_admin", "merch_manager", "inventory_manager"].includes(staffRole)) {
+  if (!["business_admin", "it_admin", "merch_manager", "inventory_manager", "fnb_manager"].includes(staffRole)) {
     return { error: "FORBIDDEN" };
   }
 
@@ -208,7 +208,7 @@ export async function generateDraftPOsAction(payload: { supplierId: string, item
   if (!user) return { error: "UNAUTHORIZED" };
 
   const staffRole = (user.app_metadata?.staff_role as string) ?? null;
-  if (!["business_admin", "it_admin", "merch_manager", "inventory_manager"].includes(staffRole)) {
+  if (!["business_admin", "it_admin", "merch_manager", "inventory_manager", "fnb_manager"].includes(staffRole)) {
     return { error: "FORBIDDEN" };
   }
 

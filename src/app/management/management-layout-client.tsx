@@ -18,46 +18,48 @@ import {
 // ── Per-role navs sourced directly from management legacy index routing ──────
 const MANAGEMENT_ROUTES: Record<string, { href: string; label: string; icon: React.ComponentType<{ className?: string }> }[]> = {
   fnb_manager: [
-    { href: "/management/fnb/menu",      label: "Menu & Pricing",       icon: Utensils },
-    { href: "/management/fnb/staffing",  label: "Staffing View",        icon: Users },
-    { href: "/management/fnb/waste",     label: "Waste & Prep",         icon: Trash2 },
-    { href: "/management/fnb/margin",    label: "Margin Reporting",     icon: PieChart },
-    { href: "/management/fnb/supplier",  label: "Supplier Performance", icon: Truck },
+    { href: "/management/fnb/menu", label: "Menu & Pricing", icon: Utensils },
+    { href: "/management/fnb/retail-catalog", label: "Retail Catalog", icon: Package },
+    { href: "/management/fnb/active-orders", label: "POS Monitoring", icon: Activity },
+    { href: "/management/fnb/staffing", label: "Staffing View", icon: Users },
+    { href: "/management/fnb/incidents", label: "Crew Incidents", icon: AlertTriangle },
+    { href: "/management/fnb/margin", label: "Margin Reporting", icon: PieChart },
+    { href: "/management/fnb/supplier", label: "Supplier Performance", icon: Truck },
   ],
   merch_manager: [
-    { href: "/management/merch/catalog",   label: "Product Catalog",  icon: Package },
-    { href: "/management/merch/reorder",   label: "Reorder Points",   icon: AlertTriangle },
-    { href: "/management/merch/pos",       label: "Supplier POs",     icon: ClipboardList },
-    { href: "/management/merch/suppliers", label: "Suppliers",        icon: Truck },
+    { href: "/management/merch/catalog", label: "Product Catalog", icon: Package },
+    { href: "/management/merch/reorder", label: "Reorder Points", icon: AlertTriangle },
+    { href: "/management/merch/pos", label: "Supplier POs", icon: ClipboardList },
+    { href: "/management/merch/suppliers", label: "Suppliers", icon: Truck },
   ],
   maintenance_manager: [
-    { href: "/management/maintenance/telemetry",    label: "Spatial Telemetry",  icon: Map },
-    { href: "/management/operations/maintenance",  label: "Operations Control", icon: ShieldAlert },
+    { href: "/management/maintenance/telemetry", label: "Spatial Telemetry", icon: Map },
+    { href: "/management/operations/maintenance", label: "Operations Control", icon: ShieldAlert },
   ],
   inventory_manager: [
-    { href: "/management/inventory",            label: "Global Policies",     icon: Layers },
-    { href: "/management/inventory/transfers",  label: "Transfers & Issuance", icon: ArrowLeftRight },
-    { href: "/management/inventory/audits",     label: "Audits & Recon",      icon: ClipboardCheck },
+    { href: "/management/inventory", label: "Global Policies", icon: Layers },
+    { href: "/management/inventory/transfers", label: "Transfers & Issuance", icon: ArrowLeftRight },
+    { href: "/management/inventory/audits", label: "Audits & Recon", icon: ClipboardCheck },
   ],
   marketing_manager: [
-    { href: "/management/marketing/campaigns",  label: "Campaign Attribution",       icon: TrendingUp },
-    { href: "/management/marketing/promos",     label: "Promo Codes Management",     icon: Tag },
-    { href: "/management/marketing/demand",     label: "Demand & Yield Forecasts",   icon: Calendar },
+    { href: "/management/marketing/campaigns", label: "Campaign Attribution", icon: TrendingUp },
+    { href: "/management/marketing/promos", label: "Promo Codes Management", icon: Tag },
+    { href: "/management/marketing/demand", label: "Demand & Yield Forecasts", icon: Calendar },
   ],
   human_resources_manager: [
-    { href: "/management/hr-roster",                    label: "Staff Management",          icon: Users },
-    { href: "/management/hr-roster/shifts",             label: "Shift Scheduling",          icon: CalendarClock },
-    { href: "/management/hr-roster/attendance/ledger",  label: "Master Ledger",             icon: ShieldCheck },
-    { href: "/management/hr-roster/attendance/leaves",  label: "Leave Management",          icon: Calendar },
-    { href: "/management/hr-roster/attendance/queue",   label: "Discrepancy Queue",         icon: AlertTriangle },
+    { href: "/management/hr-roster", label: "Staff Management", icon: Users },
+    { href: "/management/hr-roster/shifts", label: "Shift Scheduling", icon: CalendarClock },
+    { href: "/management/hr-roster/attendance/ledger", label: "Master Ledger", icon: ShieldCheck },
+    { href: "/management/hr-roster/attendance/leaves", label: "Leave Management", icon: Calendar },
+    { href: "/management/hr-roster/attendance/queue", label: "Discrepancy Queue", icon: AlertTriangle },
   ],
   compliance_manager: [],
   operations_manager: [
-    { href: "/management/operations/telemetry",       label: "Zone Telemetry",         icon: RadioTower },
-    { href: "/management/operations/crew-deployment", label: "Crew Deployment",        icon: Radar },
-    { href: "/management/incidents",                  label: "Incident Log",           icon: Siren },
-    { href: "/management/scheduler",                  label: "Operational Timeline",   icon: Clock },
-    { href: "/management/operations/experiences",     label: "Experience Config",      icon: Activity },
+    { href: "/management/operations/telemetry", label: "Zone Telemetry", icon: RadioTower },
+    { href: "/management/operations/crew-deployment", label: "Crew Deployment", icon: Radar },
+    { href: "/management/incidents", label: "Incident Log", icon: Siren },
+    { href: "/management/scheduler", label: "Operational Timeline", icon: Clock },
+    { href: "/management/operations/experiences", label: "Experience Config", icon: Activity },
   ],
 };
 
@@ -128,28 +130,28 @@ export default function ManagementLayoutClient({
                 <span className="text-[#d4af37] mr-1.5">▸</span> {roleLabel}
               </p>
               <ul className="space-y-1 px-4">
-              {navItems.map((item) => {
-                const Icon = item.icon;
-                const isRootLevel = item.href.split('/').length <= 3;
-                const isActive = isRootLevel ? pathname === item.href : pathname.startsWith(item.href);
-                return (
-                  <li key={item.href}>
-                    <Link
-                      href={item.href}
-                      onClick={() => setMobileOpen(false)}
-                      className={`nav-item flex items-center space-x-3 px-4 py-3 rounded text-sm border-l-[3px] transition-all
+                {navItems.map((item) => {
+                  const Icon = item.icon;
+                  const isRootLevel = item.href.split('/').length <= 3;
+                  const isActive = isRootLevel ? pathname === item.href : pathname.startsWith(item.href);
+                  return (
+                    <li key={item.href}>
+                      <Link
+                        href={item.href}
+                        onClick={() => setMobileOpen(false)}
+                        className={`nav-item flex items-center space-x-3 px-4 py-3 rounded text-sm border-l-[3px] transition-all
                         ${isActive
-                          ? "border-[#d4af37] text-[#d4af37] bg-gradient-to-r from-[#d4af37]/10 to-transparent"
-                          : "border-transparent text-gray-400 hover:border-[#d4af37] hover:text-[#d4af37]"
-                        }`}
-                    >
-                      <Icon className="w-5 h-5 flex-shrink-0" />
-                      <span className="font-medium">{item.label}</span>
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
+                            ? "border-[#d4af37] text-[#d4af37] bg-gradient-to-r from-[#d4af37]/10 to-transparent"
+                            : "border-transparent text-gray-400 hover:border-[#d4af37] hover:text-[#d4af37]"
+                          }`}
+                      >
+                        <Icon className="w-5 h-5 flex-shrink-0" />
+                        <span className="font-medium">{item.label}</span>
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
             </>
           )}
         </nav>

@@ -41,13 +41,13 @@ export async function submitCheckIn(
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Unauthorized");
 
-  const { data: staff } = await supabase
-    .from("staff_records")
-    .select("id")
-    .eq("user_id", user.id)
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("staff_record_id")
+    .eq("id", user.id)
     .single();
 
-  if (!staff) throw new Error("Staff record not linked to auth account.");
+  if (!profile || !profile.staff_record_id) throw new Error("Staff record not linked to auth account.");
 
   // KL date string for shift lookup
   const klDate = new Intl.DateTimeFormat("en-CA", {
@@ -60,7 +60,7 @@ export async function submitCheckIn(
   const { data: shift } = await supabase
     .from("shift_schedules")
     .select("id, expected_start_time, clock_in")
-    .eq("staff_record_id", staff.id)
+    .eq("staff_record_id", profile.staff_record_id)
     .eq("shift_date", klDate)
     .order("expected_start_time", { ascending: true })
     .limit(1)

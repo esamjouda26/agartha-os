@@ -74,43 +74,55 @@ export async function getMyRetailRestockTasks() {
 // ── Submit Retail Order ─────────────────────────────────────────────────
 export async function submitRetailOrder(
   cart: { catalog_id: string; quantity: number; unit_price: number }[],
-  paymentMethod: "cash" | "card" | "face_id"
+  paymentMethod: "cash" | "card" | "face_id",
+  bookingId?: string | null,
+  promoCode?: string | null
 ): Promise<{ orderId: string }> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Unauthorized");
 
   const role = user.app_metadata?.staff_role as string | undefined;
-  if (role !== "giftshop_crew") throw new Error("Restricted to giftshop_crew.");
+  if (role !== "giftshop_crew" && role !== "fnb_manager") throw new Error("Restricted to retail authorized roles.");
 
   if (!cart.length) throw new Error("Cart is empty.");
 
-  const total = cart.reduce((sum, i) => sum + i.unit_price * i.quantity, 0);
+  const catalogIds = cart.map((i) => i.catalog_id);
 
-  const { data: order, error: orderErr } = await supabase
-    .from("retail_orders")
-    .insert({ status: "paid", total_amount: total, created_by: user.id })
-    .select("id")
-    .single();
+  // Query retail_catalog strictly on the server to retrieve the immutable selling_price.
+  const { data: serverCatalog, error: catErr } = await supabase
+    .from("retail_catalog")
+    .select("id, selling_price")
+    .in("id", catalogIds)
+    .eq("is_active", true);
 
-  if (orderErr || !order) throw new Error(orderErr?.message ?? "Order creation failed.");
+  if (catErr || !serverCatalog) throw new Error("Catalog fetch error.");
 
-  const { error: itemsErr } = await supabase.from("retail_order_items").insert(
-    cart.map((i) => ({
-      order_id: order.id,
-      retail_catalog_id: i.catalog_id,
-      quantity: i.quantity,
-      unit_price: i.unit_price,
-    }))
-  );
+  const verifiedItems: { catalog_id: string; quantity: number }[] = [];
 
-  if (itemsErr) throw new Error(itemsErr.message);
+  for (const item of cart) {
+    const catalogEntry = serverCatalog.find(c => c.id === item.catalog_id);
+    if (!catalogEntry) throw new Error(`Invalid or inactive catalog item: ${item.catalog_id}`);
+    
+    verifiedItems.push({
+      catalog_id: item.catalog_id,
+      quantity: item.quantity
+    });
+  }
 
-  // Payment method is UI-only — no column on retail_orders, consistent with retail schema
-  void paymentMethod;
+  // Enforce transaction atomicity when inserting into retail_orders and retail_order_items.
+  const { data: orderId, error: rpcErr } = await supabase.rpc("submit_retail_order", {
+     p_items: verifiedItems,
+     p_payment_method: paymentMethod,
+     p_user_id: user.id,
+     p_booking_id: bookingId || null,
+     p_promo_code: promoCode || null
+  });
+
+  if (rpcErr || !orderId) throw new Error(rpcErr?.message ?? "Order creation failed during transaction.");
 
   revalidatePath("/crew/retail/pos");
-  return { orderId: order.id };
+  return { orderId: orderId as string };
 }
 
 // ── Submit Retail Restock ───────────────────────────────────────────────

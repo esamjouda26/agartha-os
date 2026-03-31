@@ -92,56 +92,28 @@ export async function validatePromoCode(
 // ── Submit FnB Order ───────────────────────────────────────────────────
 export async function submitFnbOrder(
   items: FnbOrderItem[],
-  totalAmount: number,
+  _totalAmount: number, // ignored, server calculates it
   paymentMethod: "cash" | "card" | "face_id",
-  promoId?: string | null
+  promoCode?: string | null,
+  bookingId?: string | null
 ): Promise<void> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Unauthorized");
 
   const staffRole = user.app_metadata?.staff_role as string | undefined;
-  if (staffRole !== "fnb_crew") throw new Error("Restricted to fnb_crew.");
+  if (staffRole !== "fnb_crew" && staffRole !== "fnb_manager") throw new Error("Restricted to F&B authorized roles.");
   if (!items.length) throw new Error("Cart is empty.");
 
-  const { data: order, error: orderErr } = await supabase
-    .from("fnb_orders")
-    .insert({
-      status: "preparing",
-      total_amount: totalAmount,
-      payment_method: paymentMethod,
-      created_by: user.id,
-    })
-    .select("id")
-    .single();
+  const { data: orderId, error: rpcErr } = await supabase.rpc("submit_fnb_order", {
+    p_items: items,
+    p_payment_method: paymentMethod,
+    p_user_id: user.id,
+    p_booking_id: bookingId || null,
+    p_promo_code: promoCode || null
+  });
 
-  if (orderErr || !order) throw new Error(orderErr?.message ?? "Order insert failed.");
-
-  const { error: itemsErr } = await supabase.from("fnb_order_items").insert(
-    items.map((i) => ({
-      order_id: order.id,
-      menu_item_id: i.menu_item_id,
-      quantity: i.quantity,
-      unit_price: i.unit_price,
-    }))
-  );
-
-  if (itemsErr) throw new Error("Line items failed: " + itemsErr.message);
-
-  if (promoId) {
-    // Atomic increment: read current_uses then increment by 1 (fire-and-forget)
-    const { data: promo } = await supabase
-      .from("promo_codes")
-      .select("current_uses")
-      .eq("id", promoId)
-      .single();
-    if (promo) {
-      await supabase
-        .from("promo_codes")
-        .update({ current_uses: promo.current_uses + 1 })
-        .eq("id", promoId);
-    }
-  }
+  if (rpcErr || !orderId) throw new Error(rpcErr?.message ?? "Order insert failed: transaction aborted.");
 
   revalidatePath("/crew/fnb/active-orders");
 }
