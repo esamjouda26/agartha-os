@@ -1,14 +1,13 @@
-import { forwardRef, type InputHTMLAttributes } from "react";
+import { forwardRef, type TextareaHTMLAttributes } from "react";
 import { cn } from "@/lib/utils";
 
-const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(
-  ({ className, type = "text", ...props }, ref) => {
+const Textarea = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<HTMLTextAreaElement>>(
+  ({ className, ...props }, ref) => {
     return (
-      <input
+      <textarea
         ref={ref}
-        type={type}
         className={cn(
-          "w-full rounded-lg px-4 py-3 min-h-[44px] text-sm transition-all shadow-sm focus:outline-none focus:ring-2 focus:ring-[#d4af37]/50 disabled:opacity-50 disabled:cursor-not-allowed",
+          "w-full rounded-lg px-4 py-3 min-h-[88px] text-sm transition-all shadow-sm focus:outline-none focus:ring-2 focus:ring-[#d4af37]/50 disabled:opacity-50 disabled:cursor-not-allowed resize-y",
           // Light Mode
           "bg-white/70 border border-gray-200 text-gray-900 placeholder:text-gray-500 focus:border-[#d4af37] focus:bg-white backdrop-blur-md",
           // Dark Mode
@@ -21,5 +20,5 @@ const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>
   }
 );
 
-Input.displayName = "Input";
-export { Input };
+Textarea.displayName = "Textarea";
+export { Textarea };
